@@ -1,0 +1,189 @@
+import { currentMemoryPublications } from "./memory-publication.js";
+import { projectSheet } from "./sheet.js";
+import { projectProfile } from "./profile-views.js";
+import { listEditableFields } from "./editing.js";
+export function projectPlayer(campaign) {
+    const state = campaign.snapshot.state;
+    const character = state.characters.find(entry => entry.id === state.playerCharacterId);
+    const play = state.classState.find(entry => entry.characterId === state.playerCharacterId);
+    return {
+        context: { campaignId: campaign.id, branchId: campaign.branchId, revision: campaign.revision },
+        memoryBindings: {
+            canonical: state.memoryBindings.canonical === null ? null
+                : { backend: state.memoryBindings.canonical.backend, id: state.memoryBindings.canonical.id },
+            people: state.memoryBindings.people.map(({ personId, backend, bookId }) => ({ personId, backend, bookId })),
+        },
+        profiles: state.profiles.map(profile => projectProfile(state, profile.personId, 'player')),
+        characterId: state.playerCharacterId, character: projectCharacter(character), sheet: projectSheet(state),
+        play: { manifestedElement: play.manifestedElement, activeClassId: play.activeClassId,
+            switchesThisScene: play.switchesThisScene, nextSwitchCost: play.switchesThisScene + 1,
+            scene: { id: state.world.scene.id, number: state.world.scene.number, startAnchor: {
+                    binding: state.world.scene.startAnchor.binding, nextMessageIndex: state.world.scene.startAnchor.nextMessageIndex,
+                    prefixFingerprint: state.world.scene.startAnchor.prefixFingerprint,
+                } },
+            cards: play.classes.map(card => ({ id: card.id, name: card.name, tier: card.tier,
+                competence: card.competence.map(({ skillId, bonus }) => ({ skillId, bonus })),
+                ...(card.sourceClassIds === undefined ? {} : { sourceClassIds: [...card.sourceClassIds] }),
+            })),
+        },
+        editableFields: listEditableFields({ ...state, characters: [character], classState: [play] }).map(({ ref, label, value, choices }) => ({
+            ref: { owner: ref.owner, entityId: ref.entityId, field: ref.field,
+                ...(ref.box === undefined ? {} : { box: ref.box }) }, label, value,
+            ...(choices === undefined ? {} : { choices: [...choices] }),
+        })),
+        campaignDetails: {
+            mysteries: state.world.mysteries.map(({ id, question, discoveries, truth }) => ({ id, question, truth,
+                discoveries: discoveries.map(({ id, name }) => ({ id, name })) })),
+            threads: state.world.threads.map(({ id, name }) => ({ id, name })),
+            characters: state.world.characters.map(({ id, name }) => ({ id, name })),
+            knives: state.world.knives.map(({ id, name, beat, status }) => ({ id, name, beat, status })),
+        },
+        history: projectHistory(campaign),
+        pendingManual: state.pending?.operationId ?? null, sceneReview: projectSceneReview(state),
+        memoryPublications: projectMemoryPublicationStatus(state),
+        rules: { gameId: campaign.rules.gameId, revision: campaign.rules.revision }, opening: state.world.opening,
+    };
+}
+// One status per accepted scene discloses no target identities, counts, private prose or source metadata.
+function projectMemoryPublicationStatus(state) {
+    const summaries = new Map();
+    for (const job of currentMemoryPublications(state)) {
+        let summary = summaries.get(job.document.sceneRecordId);
+        if (!summary) {
+            summary = { status: job.status, needsDestination: false };
+            summaries.set(job.document.sceneRecordId, summary);
+        }
+        if (job.status === 'conflict')
+            summary.status = 'conflict';
+        else if (job.status === 'pending' && summary.status !== 'conflict')
+            summary.status = 'pending';
+        summary.needsDestination ||= job.destination === null;
+    }
+    return state.sceneRecords.map(record => ({
+        operationId: record.operationId, sceneNumber: record.sceneNumber,
+        ...(summaries.get(record.id) ?? { status: 'published', needsDestination: false }),
+    }));
+}
+// Review source is selected scene evidence; canonical draft, knowledge and owner revision pins stay private.
+function projectSceneReview(state) {
+    const review = state.sceneReview;
+    if (!review)
+        return null;
+    const { source, proposal } = review;
+    const prose = (entry) => ({ section: entry.section, text: entry.text,
+        status: entry.status, relatedPersonIds: [...entry.relatedPersonIds] });
+    const anchor = (value) => ({ binding: value.binding,
+        nextMessageIndex: value.nextMessageIndex, prefixFingerprint: value.prefixFingerprint });
+    return {
+        id: review.id, sceneId: review.sceneId, revision: review.revision,
+        profilesChanged: review.profileRevisions.some(pin => state.profiles.find(profile => profile.personId === pin.personId).revision !== pin.revision),
+        profileBefore: review.profileBefore.map(entry => entry === null ? null : prose(entry)),
+        source: { id: source.id, sceneId: source.sceneId, binding: source.binding, fingerprint: source.fingerprint,
+            startAnchor: anchor(source.startAnchor), endAnchor: anchor(source.endAnchor),
+            messages: source.messages.map(message => ({ position: message.position, speaker: message.speaker,
+                text: message.text, swipeId: message.swipeId, revision: message.revision })),
+        },
+        proposal: { summary: proposal.summary, participants: [...proposal.participants],
+            events: proposal.events.map(event => ({ text: event.text, personIds: [...event.personIds],
+                sourceIndices: [...event.sourceIndices], knownByAdditions: [...event.knownByAdditions] })),
+            profileChanges: proposal.profileChanges.map(change => ({ personId: change.personId, entryId: change.entryId,
+                knownByAdditions: [...change.knownByAdditions], replacement: change.replacement === null ? null
+                    : { section: change.replacement.section, text: change.replacement.text, status: change.replacement.status,
+                        relatedPersonIds: [...change.replacement.relatedPersonIds], sourceIndices: [...change.replacement.sourceIndices] } })),
+        },
+    };
+}
+// Persisted records may contain extra metadata: select public fields at every object boundary.
+function projectCharacter(character) {
+    const named = ({ id, name }) => ({ id, name });
+    const track = ({ id, boxes }) => ({ id, boxes: [...boxes] });
+    const meter = (entry) => ({ ...named(entry), track: track(entry.track),
+        policy: entry.policy, full: entry.full });
+    return {
+        ...named(character), identity: { ...character.identity },
+        backgrounds: character.backgrounds.map(named), edges: character.edges.map(named),
+        skills: character.skills.map(entry => ({ ...named(entry), category: entry.category, rank: entry.rank })),
+        aspects: character.aspects.map(entry => ({ ...named(entry),
+            definition: { id: entry.definition.id, revision: entry.definition.revision },
+            track: track(entry.track), status: entry.status,
+            acquisition: { source: entry.acquisition.source,
+                ...(entry.acquisition.operationId === undefined ? {} : { operationId: entry.acquisition.operationId }) },
+        })),
+        resources: character.resources.map(entry => ({ ...named(entry), kind: entry.kind,
+            tags: entry.tags.map(named), source: entry.source })),
+        impulses: character.impulses.map(entry => entry.type === 'text'
+            ? { ...named(entry), type: entry.type }
+            : { ...meter(entry), type: entry.type, effect: entry.effect }),
+        meters: character.meters.map(meter),
+        advancement: character.advancement.map(entry => entry.type === 'project'
+            ? { ...meter(entry), type: entry.type, earned: entry.earned, rule: entry.rule }
+            : { ...named(entry), type: entry.type, kind: entry.kind, spentOn: entry.spentOn }),
+        conditions: character.conditions.map(entry => ({ ...meter(entry), kind: entry.kind, effect: entry.effect })),
+        possessions: character.possessions.map(named),
+    };
+}
+// Copy the recorded public fields without exposing unrelated nested data.
+export function projectActionReceipt(entry) {
+    const event = entry.event;
+    const receipt = event.kind === 'action-resolved'
+        ? { command: event.command.originalActionCommand, result: event.result,
+            revision: entry.revision, costs: event.costs, effects: event.effects } : undefined;
+    if (!receipt)
+        return undefined;
+    const { command: c, result: r } = receipt;
+    const a = c.action;
+    return {
+        command: { operationId: c.operationId, campaignId: c.campaignId, branchId: c.branchId,
+            expectedRevision: c.expectedRevision,
+            source: { messageId: c.source.messageId, messageRevision: c.source.messageRevision },
+            action: { description: a.description, edge: a.edge,
+                skill: a.skill === null ? null : { kind: a.skill.kind, name: a.skill.name },
+                advantageSources: [...a.advantageSources],
+                ...(a.permission === undefined ? {} : { permission: a.permission }),
+                ...(a.baseImpact === undefined ? {} : { baseImpact: a.baseImpact }),
+                ...(a.cuts === undefined ? {} : { cuts: {
+                        ...(a.cuts.difficulty === undefined ? {} : { difficulty: a.cuts.difficulty }),
+                        ...(a.cuts.rankGap === undefined ? {} : { rankGap: a.cuts.rankGap }),
+                        ...(a.cuts.mires === undefined ? {} : { mires: [...a.cuts.mires] }),
+                        ...(a.cuts.precision === undefined ? {} : { precision: a.cuts.precision }),
+                        ...(a.cuts.impact === undefined ? {} : { impact: a.cuts.impact }),
+                    } }),
+            },
+        },
+        result: { pool: r.pool, draws: [...r.draws], survivors: [...r.survivors],
+            fallback: r.fallback, outcome: r.outcome, twist: r.twist,
+            removed: [...r.removed], impact: r.impact,
+            cuts: { difficulty: r.cuts.difficulty, rankGap: r.cuts.rankGap,
+                mire: r.cuts.mire, injury: r.cuts.injury, precision: r.cuts.precision, impact: r.cuts.impact, total: r.cuts.total },
+            origin: { classBonus: r.origin.classBonus,
+                uncappedPool: r.origin.uncappedPool, overflow: r.origin.overflow, mandatoryCuts: r.origin.mandatoryCuts,
+                remainingMandatoryCuts: r.origin.remainingMandatoryCuts, voluntaryCuts: r.origin.voluntaryCuts },
+        },
+        revision: receipt.revision, costs: [...receipt.costs], effects: [...receipt.effects],
+    };
+}
+function projectHistory(campaign) {
+    return campaign.journal.map(entry => {
+        const item = { operationId: entry.operationId, at: entry.at, summary: entry.summary };
+        const receipt = projectActionReceipt(entry);
+        if (receipt)
+            item.receipt = receipt;
+        const event = entry.event;
+        if (event.kind === 'field-corrected')
+            item.correction = {
+                label: event.label, before: event.before, after: event.after, reason: event.command.reason,
+            };
+        if (event.kind === 'fields-corrected') {
+            item.corrections = event.changes.map(({ command: { ref }, label, before, after }) => ({
+                ref: { owner: ref.owner, entityId: ref.entityId, field: ref.field,
+                    ...(ref.box === undefined ? {} : { box: ref.box }) }, label, before, after,
+            }));
+            item.reason = event.reason;
+        }
+        if (event.kind === 'manual-handled') {
+            item.manualNote = event.command.note;
+            item.manualTarget = event.command.target;
+        }
+        return item;
+    });
+}

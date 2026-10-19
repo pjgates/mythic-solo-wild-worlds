@@ -1,0 +1,570 @@
+import { NarrationMemory, MEMORY_PROMPT_KEY } from "./narration-memory.js";
+import { renderNarrationMemory } from "./narration-memory-view.js";
+import { EventCorrectionSession } from "./event-correction-session.js";
+import { MemorySession } from "./memory-session.js";
+import { journalMemoryAdapter } from "./memory-adapter.js";
+import { renderMemory } from "./memory-view.js";
+import { CastSession } from "./cast-session.js";
+import { renderCast } from "./cast-view.js";
+import { ProfileSession } from "./profile-session.js";
+import { SceneReviewSession } from "./scene-review-session.js";
+import { renderSceneReview } from "./scene-review-view.js";
+import { renderPlayControls } from "./play-controls.js";
+import { CorrectionSession } from "./correction-view.js";
+import { renderActions } from "./action-view.js";
+import { CampaignController } from "./game/minor-character/controller.js";
+import { hostStore } from "./game/minor-character/host-store.js";
+import { renderSheet } from "./sheet.js";
+import { createSheetShell } from "./sheet-shell.js";
+import { SceneSource } from "./scene-source.js";
+import { SceneModel } from "./scene-model.js";
+import { SceneSession } from "./scene-session.js";
+import { createSceneControls } from "./scene-controls.js";
+import { MythicBridge, MYTHIC_READY_EVENT } from "./mythic-bridge.js";
+import { renderMythicPanel } from "./mythic-view.js";
+import { AgentAdmission } from "./agent-admission.js";
+let admitGeneration = async () => false;
+window.minorCharacterActionGuard = async (_chat, _size, abort) => {
+    try {
+        if (!await admitGeneration())
+            abort(true);
+    }
+    catch {
+        abort(true);
+    }
+};
+const launcher = document.createElement('button');
+launcher.id = 'minor-character-launch';
+launcher.className = 'menu_button';
+launcher.textContent = 'Sera’s sheet';
+let destinationChanged = () => { };
+const shell = createSheetShell(launcher, () => destinationChanged());
+shell.content.innerHTML = `<p role="status" aria-live="polite">Starting…</p>
+  <div class="mc-actions">
+    <button class="menu_button" data-create disabled>Create Sera’s campaign</button>
+    <button class="menu_button" data-reopen disabled>Reopen saved campaign</button>
+  </div><div class="mc-sheet-body"></div>`;
+const status = shell.content.querySelector('[role="status"]');
+const agentNotice = document.createElement('p');
+agentNotice.className = 'mc-agent-notice';
+agentNotice.setAttribute('role', 'status');
+agentNotice.hidden = true;
+status.after(agentNotice);
+const content = shell.content.querySelector('.mc-sheet-body');
+const create = shell.content.querySelector('[data-create]');
+const reopen = shell.content.querySelector('[data-reopen]');
+shell.mount();
+const refKey = (ref) => JSON.stringify(ref.kind === 'group' ? ['group', ref.chatId] : ['character', ref.characterId, ref.fileName]);
+try {
+    await (window.__TAURITAVERN__?.ready ?? window.__TAURITAVERN_MAIN_READY__);
+    const api = window.__TAURITAVERN__?.api;
+    if (!api?.chat?.current?.handle || !api.extension?.store?.tryGetJson || !api.extension.store.setJson) {
+        throw new Error('Required TauriTavern chat identity and extension storage are unavailable.');
+    }
+    const conditionalMemoryStorage = 'setJsonIf' in api.extension.store && typeof api.extension.store.setJsonIf === 'function';
+    let boundRef = '';
+    let stableId = '';
+    const inline = document.createElement('section');
+    inline.id = 'minor-character-actions';
+    const context = window.SillyTavern.getContext();
+    let request = 0;
+    let writerActive = false;
+    const handles = new Map();
+    const controller = new CampaignController(hostStore(api.extension.store, binding => {
+        const target = handles.get(binding);
+        if (!target)
+            throw new Error('Campaign chat handle is unavailable.');
+        return target;
+    }), render);
+    // Mythic GME loads after this extension (loading order 110 vs 100), so the API is looked up until it appears.
+    const mythic = new MythicBridge({ resolve: () => window.MythicGME, binding: campaignBinding, changed: render });
+    window.addEventListener(MYTHIC_READY_EVENT, () => { if (mythic.attach())
+        render(); });
+    const mythicPoll = setInterval(() => { if (mythic.attach()) {
+        clearInterval(mythicPoll);
+        render();
+    } }, 1000);
+    setTimeout(() => clearInterval(mythicPoll), 120_000);
+    const corrections = new CorrectionSession(controller, capture, () => ready() && !eventSession.editing && !memorySession.busy && !sceneSession.busy && !sceneReview.busy && !writerActive && !profileSession.editing && !castSession.editing, render);
+    const sceneSource = new SceneSource({
+        read: () => {
+            if (!ready())
+                throw new Error('Chat changed or campaign unavailable.');
+            return { binding: controller.state.binding, reference: refKey(api.chat.current.ref()), stableChatId: stableId,
+                scene: controller.playerView?.play.scene, messages: window.SillyTavern.getContext().chat };
+        },
+        stableId: () => api.chat.current.handle().stableId(),
+    });
+    const gmAvailable = typeof api.llmConnections?.list === 'function' && typeof api.llmConnections?.load === 'function'
+        && typeof context.ChatCompletionService?.sendRequest === 'function';
+    const sceneModel = new SceneModel({
+        current: () => {
+            const view = controller.playerView;
+            return gmReady() && view ? { binding: controller.state.binding, ...view.context, sceneId: view.play.scene.id } : undefined;
+        },
+        loadConnection: async (id) => (await api.llmConnections.load(id)).connection,
+        sendRequest: (payload, extract, signal) => window.SillyTavern.getContext().ChatCompletionService.sendRequest(payload, extract, signal),
+    }, sceneSource);
+    const sceneSession = new SceneSession(sceneModel, sceneSource, controller, capture, sceneDraftReady, render);
+    const sceneReview = new SceneReviewSession(controller, captureSceneOperation, reviewReady, render, () => startScene(false), () => gmAvailable && !!sceneModel.selection.connectionId && !!sceneModel.selection.modelId.trim());
+    const profileSession = new ProfileSession(controller, capture, () => ready() && !eventSession.editing && !memorySession.busy && !castSession.editing && !corrections.editing && !sceneSession.busy && !sceneReview.busy && !writerActive, render);
+    const castSession = new CastSession(controller, async (expected) => {
+        const captured = await capture(expected);
+        if (!castReady())
+            throw new Error('Finish the current operation before changing the cast.');
+        return captured;
+    }, castReady, render, personId => { selectedPersonId = personId; castDetail = true; focusCastResult = true; });
+    const memorySession = new MemorySession(controller, destination => journalMemoryAdapter(api.extension.store, destination), () => ready() && !eventSession.editing && !writerActive && !castSession.editing && !profileSession.editing && !corrections.editing
+        && !sceneSession.busy && !sceneReview.busy && !sceneReview.draft && !sceneReview.pendingOperation, render);
+    const eventSession = new EventCorrectionSession(controller, capture, () => ready() && !memorySession.busy && !memorySession.reviewing && !writerActive && !castSession.editing
+        && !profileSession.editing && !corrections.editing && !sceneSession.busy && !sceneReview.busy, render);
+    const narrationRoot = document.createElement('section');
+    const narrationMemory = new NarrationMemory(controller, destination => journalMemoryAdapter(api.extension.store, destination), {
+        ready: () => writerReady() && controller.canGenerate,
+        install: value => context.setExtensionPrompt(MEMORY_PROMPT_KEY, value, 1, 0, false, 0),
+        changed: render,
+        safe: async () => {
+            const response = await fetch('/api/extensions/discover');
+            if (!response.ok)
+                return false;
+            const extensions = await response.json();
+            const disabled = context.extensionSettings?.disabledExtensions ?? [];
+            return Array.isArray(extensions) && extensions.every(extension => extension && typeof extension.name === 'string'
+                && (!extension.name.includes('SillyTavern-MemoryBooks') || disabled.includes(extension.name)));
+        },
+    });
+    shell.content.append(narrationRoot);
+    function castReady() {
+        return ready() && !eventSession.editing && !memorySession.busy && !profileSession.editing && !corrections.editing
+            && !sceneSession.busy && !sceneReview.busy && !writerActive;
+    }
+    const gmControls = createSceneControls(sceneModel, sceneSession, api.llmConnections, gmAvailable, sceneDraftReady, startScene);
+    shell.content.append(gmControls.element);
+    sceneReview.accepted = () => mythic.endScene();
+    function writerReady() { return !eventSession.editing && !memorySession.busy && !memorySession.reviewing && !castSession.editing && !profileSession.editing && !corrections.editing && !sceneSession.busy && !sceneReview.busy && ready(); }
+    function playReady() { return writerReady() && !writerActive; }
+    function sceneDraftReady() {
+        return !eventSession.editing && !memorySession.busy && !memorySession.reviewing && !!controller.playerView && !castSession.editing && !profileSession.editing && !corrections.editing && !writerActive
+            && !sceneReview.busy && !sceneReview.pendingSave && ready() && controller.canGenerate;
+    }
+    async function startScene(manual) {
+        await sceneSession.request(manual);
+        const result = sceneSession.result;
+        if (result) {
+            await sceneReview.create(result);
+            const active = document.activeElement;
+            const ownedFocus = active === document.body || active instanceof HTMLElement
+                && active.matches('[data-gm-request], [data-gm-manual], [data-review-field="review-status"]');
+            if (ownedFocus && controller.playerView?.sceneReview?.source.id === result.source.id) {
+                content.querySelector('[data-review-field="summary"]')?.focus();
+            }
+        }
+    }
+    function gmReady() { return gmAvailable && sceneDraftReady(); }
+    async function capturePlay(expected) {
+        if (!playReady())
+            throw new Error('Finish or cancel sheet corrections before playing.');
+        const captured = await capture(expected);
+        if (!playReady())
+            throw new Error('Finish or cancel sheet corrections before playing.');
+        return captured;
+    }
+    function reviewReady() { return !eventSession.editing && !memorySession.busy && !memorySession.reviewing && !castSession.editing && !profileSession.editing && !corrections.editing && !sceneSession.busy && !writerActive && ready(); }
+    async function captureSceneOperation(expected, source, retained) {
+        const epoch = sceneSource.epoch;
+        if (!reviewReady())
+            throw new Error('Finish the current operation before reviewing the scene.');
+        const operation = retained ?? await capture(expected);
+        if (source)
+            await sceneSource.assertSceneCurrent(source);
+        const current = controller.playerView?.context;
+        if (!reviewReady() || (source && epoch !== sceneSource.epoch) || current?.campaignId !== expected.campaignId
+            || current.branchId !== expected.branchId || current.revision !== expected.revision)
+            throw new Error('Scene or campaign changed; reopen the review.');
+        return retained ?? (source ? { ...operation, source: { messageId: source.id, messageRevision: source.fingerprint } } : operation);
+    }
+    let selectedPersonId = null;
+    let castOwner = '', castQuery = '', castDetail = false, showRetired = false, castPosition = 0, focusCastResult = false;
+    destinationChanged = () => { eventSession.reset(); profileSession.reset(); castSession.reset(); render(); };
+    let profileOwner = '';
+    const openProfileSources = new Set();
+    const openProfileScenes = new Map();
+    let profileVisibleCount = 50;
+    let profileFocus;
+    let reviewFocus;
+    function render() {
+        const focused = document.activeElement;
+        if (focused instanceof HTMLElement && focused.dataset.reviewField && focused.dataset.reviewField !== 'review-region') {
+            reviewFocus = { key: focused.dataset.reviewField,
+                start: focused instanceof HTMLTextAreaElement ? focused.selectionStart : null,
+                end: focused instanceof HTMLTextAreaElement ? focused.selectionEnd : null };
+        }
+        else if (focused !== document.body && !(focused instanceof HTMLElement && focused.closest('.mc-scene-review')))
+            reviewFocus = undefined;
+        if (focused instanceof HTMLElement && focused.dataset.profileFocus && focused.dataset.profileFocus !== 'history-status')
+            profileFocus = {
+                key: focused.dataset.profileFocus, section: focused.closest('[data-profile-section]')?.dataset.profileSection,
+                start: focused instanceof HTMLTextAreaElement || focused instanceof HTMLInputElement ? focused.selectionStart : null,
+                end: focused instanceof HTMLTextAreaElement || focused instanceof HTMLInputElement ? focused.selectionEnd : null,
+            };
+        else if (focused !== document.body && !(focused instanceof HTMLElement && focused.dataset.profileFocus === 'history-status'))
+            profileFocus = undefined;
+        const view = controller.playerView;
+        const directoryOwner = view ? JSON.stringify([view.context.campaignId, view.context.branchId]) : castOwner;
+        if (directoryOwner !== castOwner) {
+            selectedPersonId = null;
+            castQuery = '';
+            castDetail = false;
+            showRetired = false;
+            castPosition = 0;
+            castOwner = directoryOwner;
+            castSession.reset();
+        }
+        if (view)
+            castSession.reconcile(view);
+        const personId = shell.destination === 'cast' ? selectedPersonId : view?.characterId;
+        const owner = view ? JSON.stringify([view.context.campaignId, view.context.branchId, personId]) : profileOwner;
+        if (owner !== profileOwner) {
+            eventSession.reset();
+            profileSession.reset();
+            openProfileSources.clear();
+            openProfileScenes.clear();
+            profileVisibleCount = 50;
+            profileFocus = undefined;
+            profileOwner = owner;
+        }
+        status.textContent = controller.state.status;
+        create.disabled = controller.state.busy || !controller.state.available || !!view;
+        reopen.disabled = controller.state.busy;
+        if (view) {
+            corrections.reconcile(view);
+            sceneReview.reconcile(view);
+            profileSession.reconcile(view);
+            eventSession.reconcile(view);
+            memorySession.reconcile();
+            const memoryControls = (target) => {
+                const binding = target === null ? null : view.memoryBindings.people.find(entry => entry.personId === target);
+                const destination = target === null ? view.memoryBindings.canonical
+                    : binding ? { backend: binding.backend, id: binding.bookId } : null;
+                return { personId: target, destination, session: castSession,
+                    conditionalStorage: conditionalMemoryStorage,
+                    begin: () => {
+                        castSession.begin(view, { kind: 'bind-memory', personId: target, bookId: destination?.id ?? '' });
+                        [...content.querySelectorAll('[data-profile-focus]')]
+                            .find(control => control.dataset.profileFocus === `memory:${target ?? 'canonical'}:id`)?.focus();
+                    } };
+            };
+            const profileCallbacks = {
+                npc: shell.destination === 'cast',
+                memory: personId ? memoryControls(personId) : undefined,
+                openSources: openProfileSources, session: profileSession,
+                eventSession,
+                correctEvent: (sceneRecordId, eventId) => eventSession.begin(view, personId, sceneRecordId, eventId),
+                history: { visibleCount: profileVisibleCount, openScenes: openProfileScenes, loadOlder: () => {
+                        if (profileOwner !== owner)
+                            return;
+                        const previousCount = profileVisibleCount, position = shell.content.scrollTop;
+                        profileVisibleCount += 50;
+                        render();
+                        const target = content.querySelectorAll('[data-profile-event]')[previousCount];
+                        const scene = target?.closest('[data-profile-scene]');
+                        if (scene)
+                            scene.open = true;
+                        shell.content.scrollTop = position;
+                        target?.focus({ preventScroll: true });
+                    } },
+                edit: (section, entryId) => profileSession.begin(view, personId, section, entryId),
+                readSource: (source) => ready() && personId ? controller.resolveProfileSource(view.context, personId, source) : null,
+            };
+            if (shell.destination === 'cast') {
+                renderCast(content, view.profiles.filter(profile => profile.personId !== view.characterId), selectedPersonId, {
+                    ...profileCallbacks, cast: {
+                        canonicalMemory: memoryControls(null),
+                        session: castSession,
+                        add: () => {
+                            castSession.begin(view, { kind: 'add', name: '' });
+                            content.querySelector('[data-profile-focus="cast-name"]')?.focus();
+                        },
+                        rename: () => {
+                            const profile = view.profiles.find(profile => profile.personId === personId);
+                            castSession.begin(view, { kind: 'rename', personId: profile.personId, name: profile.name });
+                            content.querySelector('[data-profile-focus="cast-name"]')?.focus();
+                        },
+                        retire: () => {
+                            const profile = view.profiles.find(profile => profile.personId === personId);
+                            castSession.begin(view, { kind: 'retire', personId: profile.personId, retired: !profile.retired });
+                            void castSession.save();
+                        },
+                        detail: castDetail, query: castQuery, showRetired,
+                        search: query => { castQuery = query; render(); },
+                        filterRetired: show => { showRetired = show; render(); },
+                        selectPerson: id => {
+                            castPosition = shell.content.scrollTop;
+                            if (selectedPersonId !== id) {
+                                eventSession.reset();
+                                profileSession.reset();
+                                castSession.reset();
+                            }
+                            selectedPersonId = id;
+                            castDetail = true;
+                            render();
+                            content.querySelector('[data-cast-detail] h3')?.focus();
+                        },
+                        backToList: () => {
+                            castDetail = false;
+                            render();
+                            shell.content.scrollTop = castPosition;
+                            const row = [...content.querySelectorAll('[data-person-id]')].find(row => row.dataset.personId === selectedPersonId);
+                            (row ?? content.querySelector('[data-profile-focus="cast-search"]'))?.focus({ preventScroll: true });
+                        },
+                    },
+                });
+            }
+            else {
+                mythic.attach();
+                renderSheet(content, corrections.view ?? view, corrections.editor, profileCallbacks, mythic.sheet);
+                shell.renderHistory(view);
+                const play = document.createElement('details');
+                const summary = document.createElement('summary');
+                summary.textContent = 'Class, element & scene controls';
+                const controls = document.createElement('div');
+                play.append(summary, controls);
+                content.querySelector('.mc-identity').append(play);
+                renderPlayControls(controls, controller, capturePlay, playReady);
+                renderMythicPanel(controls, view, mythic, playReady);
+                corrections.render(content);
+                renderSceneReview(content, view, sceneReview, mythic);
+            }
+            renderMemory(content, view, memorySession);
+        }
+        else
+            content.replaceChildren();
+        renderActions(inline, controller, capturePlay, playReady);
+        narrationRoot.hidden = !view;
+        narrationMemory.reconcile();
+        if (view)
+            renderNarrationMemory(narrationRoot, view.profiles, narrationMemory);
+        gmControls.render();
+        gmControls.element.hidden = shell.destination === 'cast';
+        if (reviewFocus) {
+            const controls = [...content.querySelectorAll('[data-review-field]')];
+            const target = controls.find(control => control.dataset.reviewField === reviewFocus.key && !control.matches(':disabled'))
+                ?? controls.find(control => control.dataset.reviewField === (sceneReview.busy ? 'review-region' : 'summary') && !control.matches(':disabled'))
+                ?? controls.find(control => control.dataset.reviewField === 'review-status');
+            target?.focus({ preventScroll: true });
+            if (target instanceof HTMLTextAreaElement && reviewFocus.start !== null)
+                target.setSelectionRange(reviewFocus.start, reviewFocus.end);
+        }
+        if (profileFocus) {
+            const controls = [...content.querySelectorAll('[data-profile-focus]')].filter(control => !control.matches(':disabled'));
+            const inSection = controls.filter(control => control.closest('[data-profile-section]')?.dataset.profileSection === profileFocus.section);
+            const target = controls.find(control => control.dataset.profileFocus === profileFocus.key)
+                ?? controls.find(control => control.dataset.profileFocus === `edit:${profileFocus.key.slice(profileFocus.key.indexOf(':') + 1)}`)
+                ?? (eventSession.busy ? inSection.find(control => control.dataset.profileFocus === 'history-status') : undefined)
+                ?? inSection.find(control => control instanceof HTMLTextAreaElement)
+                ?? inSection.find(control => control instanceof HTMLButtonElement)
+                ?? inSection.find(control => control.dataset.profileFocus === 'memory-status');
+            target?.focus({ preventScroll: true });
+            if ((target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) && profileFocus.start !== null)
+                target.setSelectionRange(profileFocus.start, profileFocus.end);
+        }
+        if (corrections.editing)
+            inline.querySelectorAll('input, select, button').forEach(control => { control.disabled = true; });
+        mount();
+        if (focusCastResult) {
+            content.querySelector('[data-cast-detail] h3')?.focus();
+            focusCastResult = false;
+        }
+    }
+    function ready() {
+        try {
+            return boundRef === refKey(api.chat.current.ref()) && controller.state.available && !controller.state.busy;
+        }
+        catch {
+            return false;
+        }
+    }
+    // Busy or not, the open campaign's chat identity; Mythic state is read only for this same binding.
+    function campaignBinding() {
+        try {
+            return boundRef === refKey(api.chat.current.ref()) && controller.state.available ? controller.state.binding : '';
+        }
+        catch {
+            return '';
+        }
+    }
+    function mount() {
+        const chat = document.querySelector('#chat');
+        if (chat && chat.lastElementChild !== inline)
+            chat.append(inline);
+        shell.mount();
+    }
+    new ResizeObserver(() => {
+        const focused = document.activeElement;
+        if (!(focused instanceof HTMLElement) || !focused.closest('.mc-cast') || focused.getClientRects().length)
+            return;
+        const headings = [...content.querySelectorAll('.mc-cast h3')];
+        headings.find(heading => heading.getClientRects().length)?.focus({ preventScroll: true });
+    }).observe(content);
+    new MutationObserver(mount).observe(document.body, { childList: true, subtree: true });
+    async function capture(expected) {
+        const view = controller.playerView;
+        if (!ready() || !view)
+            throw new Error('Chat changed or campaign unavailable.');
+        if (view.context.campaignId !== expected.campaignId || view.context.branchId !== expected.branchId
+            || view.context.revision !== expected.revision)
+            throw new Error('The sheet changed; reopen the controls.');
+        const epoch = request;
+        const binding = controller.state.binding;
+        const reference = boundRef;
+        const chatId = stableId;
+        const messages = window.SillyTavern.getContext().chat;
+        const length = messages.length;
+        const index = length - 1;
+        const source = JSON.stringify(messages[index] ?? { opening: view.opening });
+        const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(source));
+        const current = controller.playerView;
+        const latestMessages = window.SillyTavern.getContext().chat;
+        if (!ready() || request !== epoch || controller.state.binding !== binding || boundRef !== reference || stableId !== chatId
+            || !current || current.context.campaignId !== expected.campaignId || current.context.branchId !== expected.branchId
+            || current.context.revision !== expected.revision || latestMessages.length !== length
+            || source !== JSON.stringify(latestMessages[index] ?? { opening: current.opening })) {
+            throw new Error('Context changed; try again.');
+        }
+        return { operationId: crypto.randomUUID(), campaignId: expected.campaignId, branchId: expected.branchId,
+            expectedRevision: expected.revision, source: { messageId: `${binding}:${index < 0 ? 'opening' : index}`,
+                messageRevision: Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, '0')).join('') } };
+    }
+    // STARTED precedes writer interception: a writer must not deny itself via writerActive.
+    admitGeneration = async () => writerReady() && controller.canGenerate
+        && (!controller.playerView || await narrationMemory.prepare());
+    // Admission only: a newly pending decision does not suspend an already-running Agent.
+    const admission = new AgentAdmission(async (target) => {
+        try {
+            if (target.stableChatId !== stableId || refKey(target.chatRef) !== boundRef || !writerReady() || !controller.canGenerate)
+                return false;
+            if (!controller.playerView)
+                return true;
+            if (!api.agent?.readWorkspaceFile || !target.runId)
+                return narrationMemory.admitContinuation({});
+            const original = await api.agent.readWorkspaceFile({ runId: target.runId, path: 'input/prompt_snapshot.json' });
+            if (target.stableChatId !== stableId || refKey(target.chatRef) !== boundRef)
+                return false;
+            return await narrationMemory.admitContinuation(JSON.parse(original.text));
+        }
+        catch {
+            return await narrationMemory.admitContinuation({});
+        }
+    }, async () => {
+        // The wrapper resolves the chat the way the host's own resume() does, so both sides name the same chat.
+        try {
+            const handle = api.chat.current.handle();
+            const id = await handle.stableId();
+            return id ? { stableChatId: id, chatRef: handle.ref } : undefined;
+        }
+        catch {
+            return undefined;
+        }
+    });
+    admission.install(api.agent);
+    agentNotice.hidden = admission.status.mode === 'hook';
+    agentNotice.textContent = admission.status.mode === 'hook' ? '' : `Agent mode: ${admission.status.detail}`;
+    async function refresh(preserveDraft = false) {
+        sceneSource.invalidate();
+        sceneSession.invalidate();
+        narrationMemory.reset();
+        mythic.reset();
+        if (!preserveDraft) {
+            corrections.clear();
+            sceneReview.reset();
+            profileSession.reset();
+            castSession.reset();
+            memorySession.reset();
+            eventSession.reset();
+            selectedPersonId = null;
+            openProfileSources.clear();
+            openProfileScenes.clear();
+            profileVisibleCount = 50;
+            profileFocus = undefined;
+            profileOwner = '';
+            castOwner = '';
+            castQuery = '';
+            castDetail = false;
+            showRetired = false;
+        }
+        else
+            sceneReview.reopen();
+        const current = ++request;
+        boundRef = '';
+        stableId = '';
+        await controller.open('');
+        try {
+            const handle = api.chat.current.handle();
+            const ref = refKey(handle.ref);
+            const id = await handle.stableId();
+            if (current !== request || ref !== refKey(api.chat.current.ref()))
+                return;
+            if (!id)
+                throw new Error('Select a saved chat first.');
+            boundRef = ref;
+            stableId = id;
+            const binding = `${handle.ref.kind}:${id}`;
+            handles.set(binding, handle.metadata);
+            await controller.open(binding);
+        }
+        catch (error) {
+            if (current !== request)
+                return;
+            status.textContent = error instanceof Error ? error.message : String(error);
+        }
+    }
+    create.onclick = async () => {
+        create.disabled = true;
+        try {
+            const epoch = sceneSource.epoch;
+            const anchor = await sceneSource.captureStartAnchor();
+            if (!ready() || epoch !== sceneSource.epoch)
+                throw new Error('Chat changed; try again.');
+            await controller.create(anchor);
+        }
+        catch (error) {
+            status.textContent = error instanceof Error ? error.message : String(error);
+        }
+        finally {
+            create.disabled = controller.state.busy || !controller.state.available || !!controller.playerView;
+        }
+    };
+    reopen.onclick = () => { void refresh(true); };
+    context.eventSource.on(context.eventTypes.CHAT_CHANGED, () => { void refresh(); });
+    for (const name of ['CHAT_LOADED', 'MESSAGE_SENT', 'MESSAGE_RECEIVED', 'MESSAGE_EDITED', 'MESSAGE_UPDATED',
+        'MESSAGE_SWIPED', 'MESSAGE_SWIPE_DELETED', 'MESSAGE_DELETED', 'MORE_MESSAGES_LOADED']) {
+        const event = context.eventTypes[name];
+        if (event)
+            context.eventSource.on(event, () => { sceneSource.invalidate(); sceneSession.invalidate(); });
+    }
+    window.addEventListener('tauritavern-llm-connections-changed', () => { sceneSession.invalidate(); void gmControls.refresh(); });
+    const started = context.eventTypes.GENERATION_STARTED, ended = context.eventTypes.GENERATION_ENDED;
+    if (started)
+        context.eventSource.on(started, async (_type, options, dryRun) => {
+            const before = admission.bypassed.length;
+            admission.observeStarted(options);
+            if (admission.bypassed.length !== before) {
+                agentNotice.hidden = false;
+                agentNotice.textContent = `Agent mode: an Agent resume (${admission.bypassed.at(-1)}) reached the host without passing Sera’s admission check. This host bypasses the guard; treat its narration as unreviewed.`;
+            }
+            const admitted = !controller.playerView || await narrationMemory.prepare();
+            // Dry runs prepare the actual context but skip the host's manifest interceptors.
+            if (admitted && !dryRun && !sceneSession.busy) {
+                writerActive = true;
+                render();
+            }
+        });
+    if (ended)
+        context.eventSource.on(ended, () => { writerActive = false; render(); });
+    window.addEventListener('beforeunload', () => context.setExtensionPrompt(MEMORY_PROMPT_KEY, '', 1, 0, false, 0));
+    void gmControls.refresh();
+    await refresh();
+}
+catch (error) {
+    status.textContent = `Sheet unavailable: ${error instanceof Error ? error.message : String(error)}`;
+}

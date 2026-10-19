@@ -1,0 +1,100 @@
+import { assertRecordedDice } from "../../engine/dice.js";
+import { resolveAction } from "../../action.js";
+import { activeClassBonuses, projectSheet } from "./sheet.js";
+import { manaStrainCut } from "./strain.js";
+export function prepareMinorAction(state, original) {
+    const originalActionCommand = structuredClone(original);
+    const { action } = originalActionCommand;
+    const character = state.characters.find(entry => entry.id === state.playerCharacterId);
+    const edge = character.edges.find(entry => entry.name === action.edge);
+    if (action.edge !== null && !edge)
+        throw new Error('Choose an existing Edge.');
+    const skill = action.skill === null ? undefined : character.skills.find(entry => entry.category === action.skill.kind && entry.name === action.skill.name);
+    const mireIds = action.cuts?.mires ?? [];
+    if (!Array.isArray(mireIds) || mireIds.some(id => !character.impulses.some(entry => entry.id === id && entry.type === 'tracked'))) {
+        throw new Error('Choose existing Mires.');
+    }
+    return { kind: 'action', originalActionCommand,
+        refs: { characterId: character.id, edgeId: edge?.id ?? null, skillId: skill?.id ?? null, mireIds } };
+}
+export function assertActionReferences(state, body) {
+    const expected = prepareMinorAction(state, body.originalActionCommand).refs;
+    const refs = body.refs;
+    if (body.kind !== 'action' || !refs || refs.characterId !== expected.characterId || refs.edgeId !== expected.edgeId
+        || refs.skillId !== expected.skillId || !Array.isArray(refs.mireIds) || refs.mireIds.length !== expected.mireIds.length
+        || Array.from(refs.mireIds).some((id, index) => id !== expected.mireIds[index]))
+        throw new Error('Action selections disagree with their stable references.');
+}
+export function resolveMinorAction(state, body, die) {
+    if (state.pending)
+        throw new Error('Finish the pending manual adjudication first.');
+    assertActionReferences(state, body);
+    const command = structuredClone(body);
+    const character = state.characters.find(entry => entry.id === command.refs.characterId);
+    const action = structuredClone(command.originalActionCommand.action);
+    if (command.refs.edgeId !== null)
+        action.edge = character.edges.find(entry => entry.id === command.refs.edgeId).name;
+    if (command.refs.skillId !== null)
+        action.skill.name = character.skills.find(entry => entry.id === command.refs.skillId).name;
+    if (action.cuts)
+        action.cuts.mires = command.refs.mireIds;
+    const result = resolveAction(projectSheet(state), action, die, manaStrainCut(state, action.skill));
+    const pending = result.outcome !== 'Triumph' || result.twist
+        ? { kind: 'manual-action', operationId: command.originalActionCommand.operationId } : null;
+    return { kind: 'action-resolved', command, result, costs: [], effects: [], pending };
+}
+// Validate this rules revision against the state before the event; never resolve or replace its roll.
+export function assertRecordedAction(state, event) {
+    const { action, operationId } = event.command.originalActionCommand;
+    const result = event.result;
+    const cuts = result?.cuts;
+    const origin = result?.origin;
+    const declared = action.cuts ?? {};
+    const integer = (value) => Number.isInteger(value) && value >= 0;
+    const text = (value) => typeof value === 'string' && !!value.trim();
+    const impacts = ['Low', 'Normal', 'High', 'Massive'];
+    if (!text(operationId) || !text(action.description)
+        || (action.skill !== null && (!['skill', 'lore'].includes(action.skill.kind) || !text(action.skill.name)))
+        || !Array.isArray(action.advantageSources) || action.advantageSources.length > 2
+        || !Array.from(action.advantageSources).every(text) || new Set(action.advantageSources).size !== action.advantageSources.length
+        || (action.permission !== undefined && typeof action.permission !== 'string')
+        || (action.cuts !== undefined && (!action.cuts || typeof action.cuts !== 'object'))
+        || ![undefined, 0, 1, 2].includes(declared.difficulty) || ![undefined, 0, 1, 2].includes(declared.rankGap)
+        || (declared.precision !== undefined && typeof declared.precision !== 'boolean')
+        || (declared.impact !== undefined && typeof declared.impact !== 'boolean')
+        || (declared.mires !== undefined && !Array.isArray(declared.mires)) || !Array.from(declared.mires ?? []).every(text)
+        || new Set(declared.mires ?? []).size !== (declared.mires ?? []).length
+        || !cuts || !origin
+        || ![cuts.difficulty, cuts.rankGap, cuts.mire, cuts.injury, cuts.precision, cuts.impact, cuts.total,
+            origin.classBonus, origin.uncappedPool, origin.overflow, origin.mandatoryCuts,
+            origin.remainingMandatoryCuts, origin.voluntaryCuts].every(integer)
+        || cuts.difficulty !== (declared.difficulty ?? 0) || cuts.rankGap !== (declared.rankGap ?? 0)
+        || cuts.precision !== Number(declared.precision ?? false) || cuts.impact !== Number(declared.impact ?? false)
+        || origin.uncappedPool < origin.classBonus || origin.uncappedPool - origin.classBonus > 6
+        || result.pool !== Math.min(6, origin.uncappedPool) || origin.overflow !== Math.max(0, origin.uncappedPool - 6)
+        || origin.mandatoryCuts !== cuts.difficulty + cuts.rankGap + cuts.mire + cuts.injury
+        || origin.remainingMandatoryCuts !== Math.max(0, origin.mandatoryCuts - origin.overflow)
+        || origin.voluntaryCuts !== cuts.precision + cuts.impact || cuts.total !== origin.remainingMandatoryCuts + origin.voluntaryCuts
+        || (action.baseImpact !== undefined && !impacts.includes(action.baseImpact))
+        || result.impact !== impacts[Math.max(0, Math.min(3, impacts.indexOf(action.baseImpact ?? 'Normal')
+            + cuts.impact - Number(cuts.rankGap === 2)))]
+        || ((origin.mandatoryCuts + origin.voluntaryCuts >= 3 || action.baseImpact === 'Massive' || result.impact === 'Massive')
+            && !action.permission?.trim())
+        || !Array.isArray(event.costs) || event.costs.length !== 0 || !Array.isArray(event.effects) || event.effects.length !== 0) {
+        throw new Error('Invalid recorded action.');
+    }
+    const sheet = projectSheet(state);
+    const ranks = action.skill?.kind === 'lore' ? sheet.lores : sheet.skills;
+    const rank = action.skill && Object.hasOwn(ranks, action.skill.name) ? ranks[action.skill.name] : 0;
+    const bonuses = activeClassBonuses(sheet);
+    const classBonus = action.skill?.kind === 'skill' && Object.hasOwn(bonuses, action.skill.name)
+        ? bonuses[action.skill.name] : 0;
+    const uncappedPool = Number(action.edge !== null) + rank + classBonus + action.advantageSources.length;
+    const mire = sheet.mires.filter(entry => (declared.mires ?? []).includes(entry.id))
+        .reduce((sum, entry) => sum + entry.track.boxes.filter(box => box === 'marked').length, 0);
+    if (origin.classBonus !== classBonus || origin.uncappedPool !== uncappedPool || cuts.mire !== mire
+        || cuts.injury !== manaStrainCut(state, action.skill)) {
+        throw new Error('Recorded contributions disagree with historical selections and state.');
+    }
+    assertRecordedDice(result, cuts.total);
+}
