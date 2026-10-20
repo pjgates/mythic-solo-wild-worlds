@@ -7,7 +7,9 @@ export const DEFAULT_PLAY_SETTINGS = { assisted: true, confirmAlways: false,
 const text = (value) => typeof value === 'string' ? value : '';
 function readSelection(value) {
     const raw = value && typeof value === 'object' ? value : {};
-    return { connectionId: text(raw.connectionId).trim(), modelId: text(raw.modelId).trim() };
+    const workspaceId = text(raw.workspaceId).trim();
+    return { connectionId: text(raw.connectionId).trim(), modelId: text(raw.modelId).trim(),
+        ...(workspaceId ? { workspaceId } : {}) };
 }
 function readTriageSettings(value) {
     const raw = value && typeof value === 'object' ? value : {};
@@ -45,6 +47,10 @@ export class PlaySettingsStore {
     }
     async update(patch) {
         const next = { ...this.#settings, ...structuredClone(patch) };
+        if (patch.decide)
+            next.decide = readSelection(next.decide);
+        if (patch.scene)
+            next.scene = readSelection(next.scene);
         if (patch.triage)
             next.triage = readTriageSettings(next.triage);
         this.#settings = next;
@@ -86,6 +92,7 @@ export function createPlaySettingsControls(host) {
     </section>
     <label>Draft connection <select data-decide-connection><option value="">Manual play (no draft connection)</option></select></label>
     <label>Draft model ID <input class="text_pole" data-decide-model placeholder="Enter the model ID" autocomplete="off" inputmode="text"></label>
+    <label>Draft Anthropic workspace ID <input class="text_pole" data-decide-workspace placeholder="wrkspc_… (optional, for unscoped Claude keys)" autocomplete="off" inputmode="text"></label>
     <div class="mc-actions"><button type="button" class="menu_button" data-roles-refresh>Refresh connections</button></div>
     <p data-roles-status role="status" aria-live="polite"></p>
     <p class="mc-role-note">Triage: Jev decides what each message is. Draft: the saved connection proposes the mechanics. Narrate: this chat’s own connection, chosen in the host’s API settings.</p>`;
@@ -93,6 +100,7 @@ export function createPlaySettingsControls(host) {
     const confirm = element.querySelector('[data-play-confirm]');
     const connection = element.querySelector('[data-decide-connection]');
     const modelId = element.querySelector('[data-decide-model]');
+    const workspaceId = element.querySelector('[data-decide-workspace]');
     const refreshButton = element.querySelector('[data-roles-refresh]');
     const status = element.querySelector('[data-roles-status]');
     const triageModel = element.querySelector('[data-triage-model]');
@@ -125,13 +133,15 @@ export function createPlaySettingsControls(host) {
         assisted.checked = settings.assisted;
         confirm.checked = settings.confirmAlways;
         assisted.disabled = confirm.disabled = !host.available;
-        connection.disabled = modelId.disabled = !host.available || !settings.assisted;
+        connection.disabled = modelId.disabled = workspaceId.disabled = !host.available || !settings.assisted;
         if (![...connection.querySelectorAll('option')].some(option => option.value === settings.decide.connectionId)) {
             connection.add(new Option(settings.decide.connectionId ? 'Selected connection unavailable' : 'Manual play (no draft connection)', settings.decide.connectionId));
         }
         connection.value = settings.decide.connectionId;
         if (modelId.value !== settings.decide.modelId)
             modelId.value = settings.decide.modelId;
+        if (workspaceId.value !== (settings.decide.workspaceId ?? ''))
+            workspaceId.value = settings.decide.workspaceId ?? '';
         if (triageModel.value !== settings.triage.modelId)
             triageModel.value = settings.triage.modelId;
         if (triageKey.value !== host.secret.value)
@@ -187,8 +197,10 @@ export function createPlaySettingsControls(host) {
     triageTest.onclick = () => runTest();
     assisted.onchange = () => save({ assisted: assisted.checked });
     confirm.onchange = () => save({ confirmAlways: confirm.checked });
-    connection.onchange = () => save({ decide: { connectionId: connection.value, modelId: modelId.value } });
-    modelId.onchange = () => save({ decide: { connectionId: connection.value, modelId: modelId.value } });
+    const saveDecide = () => save({ decide: { connectionId: connection.value, modelId: modelId.value, workspaceId: workspaceId.value } });
+    connection.onchange = saveDecide;
+    modelId.onchange = saveDecide;
+    workspaceId.onchange = saveDecide;
     async function refresh() {
         if (!host.available || !host.connections)
             return;

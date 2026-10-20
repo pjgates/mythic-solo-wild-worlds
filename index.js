@@ -132,7 +132,8 @@ try {
         const settings = playSettings.settings;
         decideModel.select(settings.decide);
         const scene = sceneModel.selection;
-        if (scene.connectionId !== settings.scene.connectionId || scene.modelId !== settings.scene.modelId) {
+        if (scene.connectionId !== settings.scene.connectionId || scene.modelId !== settings.scene.modelId
+            || (scene.workspaceId ?? '') !== (settings.scene.workspaceId ?? '')) {
             sceneModel.select(settings.scene);
             sceneSession.invalidate();
         }

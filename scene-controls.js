@@ -4,6 +4,7 @@ export function createSceneControls(model, session, connections, available, read
     element.innerHTML = `<h3>End scene</h3>
     <label>Scene GM connection <select data-gm-connection><option value="">Choose a connection…</option></select></label>
     <label>Scene GM model ID <input class="text_pole" data-gm-model placeholder="Enter the model ID" autocomplete="off"></label>
+    <label>Scene GM Anthropic workspace ID <input class="text_pole" data-gm-workspace placeholder="wrkspc_… (optional, for unscoped Claude keys)" autocomplete="off" inputmode="text"></label>
     <div class="mc-actions"><button type="button" class="menu_button" data-gm-refresh>Refresh connections</button>
       <button type="button" class="menu_button" data-gm-request>End scene</button>
       <button type="button" class="menu_button" data-gm-manual>Draft scene manually</button>
@@ -11,6 +12,7 @@ export function createSceneControls(model, session, connections, available, read
     <p data-gm-status role="status" aria-live="polite"></p>`;
     const connection = element.querySelector('[data-gm-connection]');
     const modelId = element.querySelector('[data-gm-model]');
+    const workspaceId = element.querySelector('[data-gm-workspace]');
     const refreshButton = element.querySelector('[data-gm-refresh]');
     const request = element.querySelector('[data-gm-request]');
     const cancel = element.querySelector('[data-gm-cancel]');
@@ -26,7 +28,9 @@ export function createSceneControls(model, session, connections, available, read
         status.textContent = session.message || setup;
     }
     function select() {
-        const selection = { connectionId: connection.value, modelId: modelId.value };
+        const trimmedWorkspace = workspaceId.value.trim();
+        const selection = { connectionId: connection.value, modelId: modelId.value,
+            ...(trimmedWorkspace ? { workspaceId: trimmedWorkspace } : {}) };
         model.select(selection);
         session.invalidate();
         persist(selection);
@@ -40,10 +44,12 @@ export function createSceneControls(model, session, connections, available, read
         }
         connection.value = selected.connectionId;
         modelId.value = selected.modelId;
+        workspaceId.value = selected.workspaceId ?? '';
         render();
     }
     connection.onchange = select;
     modelId.oninput = select;
+    workspaceId.oninput = select;
     request.onclick = () => { void start(false); };
     manual.onclick = () => { void start(true); };
     cancel.onclick = () => session.invalidate();

@@ -43,6 +43,13 @@ export function mapSceneConnection(selection, value) {
         requireConnection(match !== null && match[0] === raw);
         headers = JSON.stringify({ 'anthropic-workspace-id': match[1] });
     }
+    const workspace = selection.workspaceId?.trim();
+    if (workspace) {
+        requireConnection(source === 'claude' && /^wrkspc_[A-Za-z0-9]+$/.test(workspace));
+        const selectedHeaders = JSON.stringify({ 'anthropic-workspace-id': workspace });
+        requireConnection(headers === undefined || headers === selectedHeaders);
+        headers = selectedHeaders;
+    }
     const endpoint = connection.endpoint === undefined ? {} : connection.endpoint;
     requireConnection(keys(endpoint, ['baseUrl', 'sourceSpecific'])
         && (endpoint.sourceSpecific === undefined || keys(endpoint.sourceSpecific, [])));
