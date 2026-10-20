@@ -1,6 +1,7 @@
 import { applyOwnedMinorEvent, sameValue } from "./events.js";
 import { MINOR_RULES } from "./state.js";
 import { validateMinorState } from "./validate-state.js";
+import { proposalEventProvenance } from "./proposals.js";
 const text = (value) => typeof value === 'string';
 const id = (value) => text(value) && value.length > 0;
 function requireHistory(valid) {
@@ -63,6 +64,10 @@ const VALID_EVENT_KINDS = new Set([
     'tournament-started',
     'tournament-bout-resolved',
     'tournament-interlude-spent',
+    'proposal-saved',
+    'proposal-revised',
+    'proposal-cancelled',
+    'turn-decided',
 ]);
 export function readMinorCampaign(value, binding) {
     const c = structuredClone(value);
@@ -128,6 +133,12 @@ export function readMinorCampaign(value, binding) {
         if (entry.event.kind === 'action-resolved') {
             const { action, ...originalContext } = entry.event.command.originalActionCommand;
             requireHistory(sameValue(context, originalContext));
+        }
+        // A cancellation names the proposal's message, not the later message it was cancelled from.
+        if (entry.event.kind === 'proposal-saved' || entry.event.kind === 'proposal-cancelled' || entry.event.kind === 'turn-decided') {
+            const provenance = proposalEventProvenance(entry.event);
+            requireHistory(provenance.operationId === context.operationId
+                && (entry.event.kind === 'proposal-cancelled' || sameValue(provenance.source, context.source)));
         }
         state = applyOwnedMinorEvent(state, entry.event, replay);
     }

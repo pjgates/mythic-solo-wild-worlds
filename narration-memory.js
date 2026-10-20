@@ -16,6 +16,8 @@ export class NarrationMemory {
         this.adapter = adapter;
         this.host = host;
     }
+    /** The reason the latest verification held narration, until the selection changes or a verification succeeds. */
+    held = null;
     select(ids) {
         this.recipientIds = [...new Set(ids)].sort();
         this.epoch++;
@@ -24,6 +26,7 @@ export class NarrationMemory {
         this.value = '';
         this.host.install('');
         this.busy = false;
+        this.held = null;
         this.message = 'Selection changed. Memory will be verified before narration.';
         this.host.changed();
     }
@@ -47,8 +50,10 @@ export class NarrationMemory {
         this.host.changed();
         try {
             if (!await this.host.safe() || !current()) {
-                if (current())
+                if (current()) {
                     this.message = 'Unsupported memory activation. Disable independent Memory Books activation before narration.';
+                    this.held = this.message;
+                }
                 return false;
             }
             const result = await prepareMemoryContext(this.controller, this.adapter, ids, current);
@@ -56,8 +61,10 @@ export class NarrationMemory {
                 return false;
             if (result.kind === 'held') {
                 this.message = result.reason;
+                this.held = result.reason;
                 return false;
             }
+            this.held = null;
             // The explicit audience is also captured in the host's frozen extension prompt for continuation admission.
             this.value = `Minor Character narration recipients: ${JSON.stringify(result.recipientIds)}\n${result.content}`;
             this.scope = result.scope;
@@ -66,8 +73,10 @@ export class NarrationMemory {
             return true;
         }
         catch {
-            if (current())
+            if (current()) {
                 this.message = 'Memory preparation failed. Narration is held; repair remains available.';
+                this.held = this.message;
+            }
             return false;
         }
         finally {

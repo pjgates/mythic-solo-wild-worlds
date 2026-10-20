@@ -1,4 +1,5 @@
 import { NarrationMemory, MEMORY_PROMPT_KEY } from "./narration-memory.js";
+import { NarratorProjection, NARRATOR_PROMPT_KEY } from "./narrator-projection.js";
 import { renderNarrationMemory } from "./narration-memory-view.js";
 import { EventCorrectionSession } from "./event-correction-session.js";
 import { MemorySession } from "./memory-session.js";
@@ -11,23 +12,29 @@ import { SceneReviewSession } from "./scene-review-session.js";
 import { renderSceneReview } from "./scene-review-view.js";
 import { renderPlayControls } from "./play-controls.js";
 import { CorrectionSession } from "./correction-view.js";
-import { renderActions } from "./action-view.js";
+import { renderActions, expandActionCard } from "./action-view.js";
 import { CampaignController } from "./game/minor-character/controller.js";
 import { hostStore } from "./game/minor-character/host-store.js";
 import { renderSheet } from "./sheet.js";
 import { createSheetShell } from "./sheet-shell.js";
 import { SceneSource } from "./scene-source.js";
 import { SceneModel } from "./scene-model.js";
+import { DecideModel } from "./decide-model.js";
+import { JevClient } from "./jev-client.js";
+import { TriageModel } from "./turn-triage.js";
+import { TurnFlow } from "./turn-flow.js";
+import { PlaySettingsStore, createPlaySettingsControls } from "./play-settings.js";
+import { TriageSecret } from "./triage-secret.js";
 import { SceneSession } from "./scene-session.js";
 import { createSceneControls } from "./scene-controls.js";
 import { MythicBridge, MYTHIC_READY_EVENT } from "./mythic-bridge.js";
 import { renderMythicPanel } from "./mythic-view.js";
 import { AgentAdmission } from "./agent-admission.js";
 import { GitHubCheckpointSync } from "./github-sync.js";
-let admitGeneration = async () => false;
-window.minorCharacterActionGuard = async (_chat, _size, abort) => {
+let admitGeneration = async (_type) => false;
+window.minorCharacterActionGuard = async (_chat, _size, abort, type = 'normal') => {
     try {
-        if (!await admitGeneration())
+        if (!await admitGeneration(type))
             abort(true);
     }
     catch {
@@ -108,6 +115,28 @@ try {
         loadConnection: async (id) => (await api.llmConnections.load(id)).connection,
         sendRequest: (payload, extract, signal) => window.SillyTavern.getContext().ChatCompletionService.sendRequest(payload, extract, signal),
     }, sceneSource);
+    const decideModel = new DecideModel({
+        current: () => {
+            const view = controller.playerView;
+            return view && ready() ? { binding: controller.state.binding, ...view.context, sceneId: view.play.scene.id } : undefined;
+        },
+        loadConnection: async (id) => (await api.llmConnections.load(id)).connection,
+        sendRequest: (payload, extract, signal) => window.SillyTavern.getContext().ChatCompletionService.sendRequest(payload, extract, signal),
+    });
+    const playSettings = new PlaySettingsStore(api.extension.store, () => render());
+    // The triage key lives in memory for the session (spec §7); the store holds it only while Remember is on.
+    const triageSecret = new TriageSecret(api.extension.store);
+    // The key and model id are read on each call, so a Play settings change reaches the next message without rewiring.
+    const triageModel = new TriageModel(new JevClient({ apiKey: () => triageSecret.value, model: () => playSettings.settings.triage.modelId }));
+    const applyRoles = () => {
+        const settings = playSettings.settings;
+        decideModel.select(settings.decide);
+        const scene = sceneModel.selection;
+        if (scene.connectionId !== settings.scene.connectionId || scene.modelId !== settings.scene.modelId) {
+            sceneModel.select(settings.scene);
+            sceneSession.invalidate();
+        }
+    };
     const sceneSession = new SceneSession(sceneModel, sceneSource, controller, capture, sceneDraftReady, render);
     const sceneReview = new SceneReviewSession(controller, captureSceneOperation, reviewReady, render, () => startScene(false), () => gmAvailable && !!sceneModel.selection.connectionId && !!sceneModel.selection.modelId.trim());
     const profileSession = new ProfileSession(controller, capture, () => ready() && !eventSession.editing && !memorySession.busy && !castSession.editing && !corrections.editing && !sceneSession.busy && !sceneReview.busy && !writerActive, render);
@@ -137,13 +166,57 @@ try {
         },
     });
     shell.content.append(narrationRoot);
+    // The narrator always reads the current public sheet and this scene's recorded results, whatever starts generation.
+    const narratorProjection = new NarratorProjection(controller, {
+        mythic: () => mythic.narratorFacts,
+        install: value => context.setExtensionPrompt(NARRATOR_PROMPT_KEY, value, 1, 0, false, 0),
+    });
     function castReady() {
         return ready() && !eventSession.editing && !memorySession.busy && !profileSession.editing && !corrections.editing
             && !sceneSession.busy && !sceneReview.busy && !writerActive;
     }
-    const gmControls = createSceneControls(sceneModel, sceneSession, api.llmConnections, gmAvailable, sceneDraftReady, startScene);
-    shell.content.append(gmControls.element);
+    const gmControls = createSceneControls(sceneModel, sceneSession, api.llmConnections, gmAvailable, sceneDraftReady, startScene, selection => { void playSettings.update({ scene: selection }); });
+    const settingsControls = createPlaySettingsControls({ store: playSettings, connections: api.llmConnections, available: gmAvailable,
+        applied: () => { applyRoles(); render(); }, secret: triageSecret });
+    shell.content.append(settingsControls.element, gmControls.element);
+    // Turn flow operations run inside the host's interceptor, after GENERATION_STARTED, so they must not deny themselves via writerActive.
+    async function captureTurn(expected) {
+        if (!writerReady())
+            throw new Error('Finish or cancel sheet corrections before playing.');
+        return capture(expected);
+    }
+    const turnFlow = new TurnFlow({
+        controller, decide: decideModel,
+        // Jev is reached with fetch, not through the host's saved connections, so their availability does not gate it.
+        triage: { get configured() { return playSettings.settings.triage.enabled && !!triageSecret.value.trim(); },
+            read: (input, signal) => triageModel.read(input, signal), propose: (input, triage, signal) => triageModel.propose(input, triage, signal) },
+        settings: () => { const s = playSettings.settings; return { assisted: s.assisted && gmAvailable, confirmAlways: s.confirmAlways }; },
+        capture: captureTurn,
+        messages: () => window.SillyTavern.getContext().chat,
+        project: () => { narratorProjection.reconcile(); },
+        mythic: { get present() { return mythic.present && !!mythic.state; }, get sceneUnchecked() { return mythic.sceneUnchecked; },
+            fate: (odds, question) => mythic.fate(odds, question), sceneCheck: () => mythic.sceneCheck() },
+        endScene: () => {
+            shell.show('sheet');
+            gmControls.element.scrollIntoView({ block: 'start' });
+            // Without a scene connection the GM request is disabled; the manual draft is the live way to end the scene.
+            gmControls.element.querySelector('[data-gm-request]:enabled, [data-gm-manual]:enabled')?.focus();
+        },
+        declare: () => { expandActionCard(inline); render(); inline.scrollIntoView({ block: 'start' }); },
+        openSheet: () => { shell.show('sheet'); },
+        generate: typeof context.generate === 'function' ? () => window.SillyTavern.getContext().generate('normal') : undefined,
+        changed: render,
+    });
     sceneReview.accepted = () => mythic.endScene();
+    // The card is what a phone sees; a hold that lives in the sheet must still be named here, before Send fails silently.
+    function cardFlow() {
+        const flow = turnFlow.card;
+        if (flow.message || flow.choices?.length || !controller.playerView || narrationMemory.busy)
+            return flow;
+        if (!narrationMemory.recipientIds.length)
+            return { ...flow, message: 'Before narrating, choose the narration recipients in Sera’s sheet.' };
+        return narrationMemory.held ? { ...flow, message: `Narration is held: ${narrationMemory.held}` } : flow;
+    }
     function writerReady() { return !eventSession.editing && !memorySession.busy && !memorySession.reviewing && !castSession.editing && !profileSession.editing && !corrections.editing && !sceneSession.busy && !sceneReview.busy && ready(); }
     function playReady() { return writerReady() && !writerActive; }
     function sceneDraftReady() {
@@ -195,6 +268,7 @@ try {
     let profileVisibleCount = 50;
     let profileFocus;
     let reviewFocus;
+    let focusedProposal = '';
     function render() {
         const focused = document.activeElement;
         if (focused instanceof HTMLElement && focused.dataset.reviewField && focused.dataset.reviewField !== 'review-region') {
@@ -347,13 +421,20 @@ try {
         }
         else
             content.replaceChildren();
-        renderActions(inline, controller, capturePlay, playReady);
+        renderActions(inline, controller, capturePlay, playReady, cardFlow());
+        // Spec §10: a proposal that arrives without stakes puts the caret in the stakes text once, when it first appears.
+        const proposalId = view?.proposal?.id ?? '';
+        if (proposalId && proposalId !== focusedProposal)
+            inline.querySelector('[data-autofocus]')?.focus();
+        focusedProposal = proposalId;
         narrationRoot.hidden = !view;
         narrationMemory.reconcile();
+        narratorProjection.reconcile();
         if (view)
             renderNarrationMemory(narrationRoot, view.profiles, narrationMemory);
         gmControls.render();
-        gmControls.element.hidden = shell.destination === 'cast';
+        settingsControls.render();
+        gmControls.element.hidden = settingsControls.element.hidden = shell.destination === 'cast';
         if (reviewFocus) {
             const controls = [...content.querySelectorAll('[data-review-field]')];
             const target = controls.find(control => control.dataset.reviewField === reviewFocus.key && !control.matches(':disabled'))
@@ -401,10 +482,11 @@ try {
             return '';
         }
     }
+    // The card sits once between the transcript and the composer; it is re-attached only when the host drops it.
     function mount() {
         const chat = document.querySelector('#chat');
-        if (chat && chat.lastElementChild !== inline)
-            chat.append(inline);
+        if (chat && inline.previousElementSibling !== chat)
+            chat.after(inline);
         shell.mount();
     }
     new ResizeObserver(() => {
@@ -444,8 +526,9 @@ try {
                 messageRevision: Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, '0')).join('') } };
     }
     // STARTED precedes writer interception: a writer must not deny itself via writerActive.
-    admitGeneration = async () => writerReady() && controller.canGenerate
-        && (!controller.playerView || await narrationMemory.prepare());
+    admitGeneration = async (type) => writerReady() && controller.canGenerate
+        && (!controller.playerView || await narrationMemory.prepare())
+        && await turnFlow.intercept(type);
     // Admission only: a newly pending decision does not suspend an already-running Agent.
     const admission = new AgentAdmission(async (target) => {
         try {
@@ -482,6 +565,8 @@ try {
         sceneSession.invalidate();
         narrationMemory.reset();
         mythic.reset();
+        turnFlow.reset();
+        decideModel.invalidate();
         if (!preserveDraft) {
             corrections.clear();
             sceneReview.reset();
@@ -550,7 +635,7 @@ try {
         if (event)
             context.eventSource.on(event, () => { sceneSource.invalidate(); sceneSession.invalidate(); });
     }
-    window.addEventListener('tauritavern-llm-connections-changed', () => { sceneSession.invalidate(); void gmControls.refresh(); });
+    window.addEventListener('tauritavern-llm-connections-changed', () => { sceneSession.invalidate(); decideModel.invalidate(); void gmControls.refresh(); void settingsControls.refresh(); });
     const started = context.eventTypes.GENERATION_STARTED, ended = context.eventTypes.GENERATION_ENDED;
     if (started)
         context.eventSource.on(started, async (_type, options, dryRun) => {
@@ -560,6 +645,7 @@ try {
                 agentNotice.hidden = false;
                 agentNotice.textContent = `Agent mode: an Agent resume (${admission.bypassed.at(-1)}) reached the host without passing Sera’s admission check. This host bypasses the guard; treat its narration as unreviewed.`;
             }
+            narratorProjection.reconcile();
             const admitted = !controller.playerView || await narrationMemory.prepare();
             // Dry runs prepare the actual context but skip the host's manifest interceptors.
             if (admitted && !dryRun && !sceneSession.busy) {
@@ -569,8 +655,16 @@ try {
         });
     if (ended)
         context.eventSource.on(ended, () => { writerActive = false; render(); });
-    window.addEventListener('beforeunload', () => context.setExtensionPrompt(MEMORY_PROMPT_KEY, '', 1, 0, false, 0));
+    window.addEventListener('beforeunload', () => {
+        context.setExtensionPrompt(MEMORY_PROMPT_KEY, '', 1, 0, false, 0);
+        narratorProjection.clear();
+    });
+    await Promise.all([playSettings.load(), triageSecret.load()]);
+    applyRoles();
+    gmControls.sync();
+    settingsControls.render();
     void gmControls.refresh();
+    void settingsControls.refresh();
     await refresh();
 }
 catch (error) {

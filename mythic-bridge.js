@@ -1,3 +1,6 @@
+const ROLL_KINDS = new Set(['fate', 'scene-check', 'meaning', 'dice']);
+const SCENE_LABELS = { expected: 'Expected Scene', altered: 'Altered Scene', interrupt: 'Interrupt Scene' };
+const FATE_LABELS = { 'exceptional-yes': 'Exceptional Yes', yes: 'Yes', no: 'No', 'exceptional-no': 'Exceptional No' };
 /** Dispatched on `window` by `mythic-gme` right after it assigns `window.MythicGME`. */
 export const MYTHIC_READY_EVENT = 'mythic-gme-ready';
 const isApi = (value) => typeof value === 'object' && value !== null
@@ -53,6 +56,23 @@ export class MythicBridge {
         return state && { chaosFactor: state.chaosFactor, sceneCount: state.sceneCount,
             characters: state.lists.characters, threads: state.lists.threads };
     }
+    /** This scene's Fate, Scene, Meaning and dice rolls; Mythic injects only human-made rolls itself, so agent calls need this. */
+    get narratorFacts() {
+        const state = this.state;
+        if (!state || !this.api)
+            return undefined;
+        let rolls = [];
+        try {
+            const receipts = this.api.receipts?.() ?? [];
+            rolls = receipts.filter(receipt => receipt && typeof receipt.summary === 'string'
+                && receipt.sceneCount === state.sceneCount && ROLL_KINDS.has(receipt.result?.kind)).map(receipt => receipt.summary);
+        }
+        catch {
+            rolls = [];
+        }
+        return { chaosFactor: state.chaosFactor, sceneCount: state.sceneCount,
+            threads: state.lists.threads, characters: state.lists.characters, rolls };
+    }
     get canSeed() {
         const state = this.state;
         return !!state && !this.busy && state.lists.characters.length === 0 && state.lists.threads.length === 0;
@@ -106,6 +126,69 @@ export class MythicBridge {
         }
         catch (error) {
             this.message = `Scene accepted, but Mythic GME did not end its scene: ${reason(error)} End it from the Mythic drawer.`;
+        }
+        finally {
+            this.busy = false;
+            this.host.changed();
+        }
+    }
+    /** Mythic's current scene opened (after an end-scene) without its Scene Check yet; the first scene needs none. */
+    get sceneUnchecked() {
+        const state = this.state;
+        if (!state || !this.api || state.sceneCount <= 1)
+            return false;
+        try {
+            return !(this.api.receipts?.() ?? []).some(receipt => receipt?.sceneCount === state.sceneCount && receipt.result?.kind === 'scene-check');
+        }
+        catch {
+            return false;
+        }
+    }
+    /** The Scene Check that opens the next scene (design §6): one d10 against Chaos, in Mythic's own words for the narrator. */
+    async sceneCheck() {
+        if (!this.state)
+            throw new Error('Mythic GME is not loaded for this chat.');
+        const binding = this.host.binding();
+        const scene = this.state.sceneCount;
+        this.busy = true;
+        this.host.changed();
+        try {
+            const result = await this.submit('scene', {});
+            if (isRefusal(result))
+                throw new Error(result.reason);
+            if (this.host.binding() !== binding)
+                throw new Error('Chat changed while checking the scene.');
+            const check = result.scene;
+            const outcome = check?.outcome ? SCENE_LABELS[check.outcome] ?? check.outcome : 'checked';
+            const detail = check?.outcome === 'altered' && check.adjustments?.length ? ` — ${check.adjustments.map(a => a.label ?? '').filter(Boolean).join(' and ')}`
+                : check?.randomEvent ? ' — Random Event (see Mythic)' : '';
+            const summary = `Scene ${scene} check @ Chaos ${result.chaosFactor}: ${check?.draw ?? '?'} → ${outcome}${detail}.`;
+            this.message = summary;
+            return summary;
+        }
+        finally {
+            this.busy = false;
+            this.host.changed();
+        }
+    }
+    /** A Fate Check asked from the action card; the answer is Mythic's own summary, carried to the narrator by the projection. */
+    async fate(odds, question) {
+        if (!this.state)
+            throw new Error('Mythic GME is not loaded for this chat.');
+        const binding = this.host.binding();
+        this.busy = true;
+        this.host.changed();
+        try {
+            const result = await this.submit('fate', { odds, ...(question.trim() ? { question: question.trim() } : {}) });
+            if (isRefusal(result))
+                throw new Error(result.reason);
+            if (this.host.binding() !== binding)
+                throw new Error('Chat changed while asking the oracle.');
+            const fate = result.fate;
+            const outcome = fate?.outcome ? FATE_LABELS[fate.outcome] ?? fate.outcome : 'answered';
+            const summary = `Fate Check (${odds}): ${outcome}${fate?.draw !== undefined ? ` on ${fate.draw}` : ''}${fate?.randomEvent ? ' · Random Event' : ''}.`;
+            this.message = summary;
+            return summary;
         }
         finally {
             this.busy = false;

@@ -1,8 +1,35 @@
 import { assertRecordedDice } from "../../engine/dice.js";
-import { resolveAction } from "../../action.js";
+import { resolveAction, stakedHarmMarks, validActionStakes } from "../../action.js";
 import { activeClassBonuses, projectSheet } from "./sheet.js";
+import { applyActionBattery, decideHarm } from "./stakes.js";
 import { manaStrainCut } from "./strain.js";
-export function prepareMinorAction(state, original) {
+/** Accepted stakes settle Conflict and Disaster in code; only a Twist still waits for the player. */
+export function expectedActionPending(event) {
+    const { action, operationId } = event.command.originalActionCommand;
+    const waits = action.stakes !== undefined ? event.result.twist : event.result.outcome !== 'Triumph' || event.result.twist;
+    return waits ? { kind: 'manual-action', operationId } : null;
+}
+/** The harm command an accepted stake owes for this outcome, or null when nothing is owed. */
+export function stakedHarmCommand(event) {
+    const { action } = event.command.originalActionCommand;
+    const marks = stakedHarmMarks(action.stakes, event.result.outcome);
+    if (marks === 0)
+        return null;
+    const harm = action.stakes.harm;
+    return { kind: 'apply-harm', marks, targetAspectId: harm.targetAspectId, overflowChoice: harm.overflowChoice };
+}
+// Staked harm is decided on the state the roll leaves behind: battery boxes are already paid.
+export function decideStakedHarm(state, event) {
+    const command = stakedHarmCommand(event);
+    if (!command)
+        return null;
+    const after = structuredClone(state);
+    if (event.command.originalActionCommand.action.battery !== undefined) {
+        applyActionBattery(after, { ...event, kind: 'action-resolved', effects: [], pending: null, harm: null });
+    }
+    return decideHarm(after, command);
+}
+export function prepareMinorAction(state, original, proposalId) {
     const originalActionCommand = structuredClone(original);
     const { action } = originalActionCommand;
     const character = state.characters.find(entry => entry.id === state.playerCharacterId);
@@ -15,7 +42,8 @@ export function prepareMinorAction(state, original) {
         throw new Error('Choose existing Mires.');
     }
     return { kind: 'action', originalActionCommand,
-        refs: { characterId: character.id, edgeId: edge?.id ?? null, skillId: skill?.id ?? null, mireIds } };
+        refs: { characterId: character.id, edgeId: edge?.id ?? null, skillId: skill?.id ?? null, mireIds },
+        ...(proposalId === undefined ? {} : { proposalId }) };
 }
 export function assertActionReferences(state, body) {
     const expected = prepareMinorAction(state, body.originalActionCommand).refs;
@@ -45,6 +73,9 @@ export function resolveMinorAction(state, body, die) {
             action.permission = 'Origin Awakening active';
         }
     }
+    if (command.proposalId !== undefined && (typeof command.proposalId !== 'string' || state.proposal?.id !== command.proposalId)) {
+        throw new Error('This action resolves a proposal that is no longer pending.');
+    }
     const result = resolveAction(projectSheet(state), action, die, manaStrainCut(state, action.skill));
     let costs = [];
     if (action.battery !== undefined) {
@@ -52,9 +83,9 @@ export function resolveMinorAction(state, body, die) {
         const paidBoxes = core.track.boxes.flatMap((box, index) => box === 'clear' ? [index] : []).slice(0, 2);
         costs = [`core-battery:${paidBoxes[0]},${paidBoxes[1]}`];
     }
-    const pending = result.outcome !== 'Triumph' || result.twist
-        ? { kind: 'manual-action', operationId: command.originalActionCommand.operationId } : null;
-    return { kind: 'action-resolved', command, result, costs, effects: [], pending };
+    const partial = { command, result, costs };
+    const harm = decideStakedHarm(state, partial);
+    return { kind: 'action-resolved', command, result, costs, effects: [], pending: expectedActionPending(partial), harm };
 }
 // Validate this rules revision against the state before the event; never resolve or replace its roll.
 export function assertRecordedAction(state, event) {
@@ -78,7 +109,15 @@ export function assertRecordedAction(state, event) {
         ? Array.isArray(event.costs) && event.costs.length === 0
         : clearCore.length >= 2 && Array.isArray(event.costs) && event.costs.length === 1
             && event.costs[0] === `core-battery:${clearCore[0]},${clearCore[1]}`;
+    const expectedHarm = stakedHarmCommand(event);
+    const validHarm = expectedHarm === null
+        ? event.harm === null || event.harm === undefined
+        : !!event.harm && event.harm.kind === 'harm-applied' && event.harm.command.kind === 'apply-harm'
+            && event.harm.command.marks === expectedHarm.marks && event.harm.command.targetAspectId === expectedHarm.targetAspectId
+            && event.harm.command.overflowChoice === expectedHarm.overflowChoice;
     if (!validBattery || !text(operationId) || !text(action.description)
+        || (action.stakes !== undefined && !validActionStakes(action.stakes)) || !validHarm
+        || (event.command.proposalId !== undefined && !text(event.command.proposalId))
         || (action.skill !== null && (!['skill', 'lore'].includes(action.skill.kind) || !text(action.skill.name)))
         || !Array.isArray(action.advantageSources) || action.advantageSources.length > 2
         || !Array.from(action.advantageSources).every(text) || new Set(action.advantageSources).size !== action.advantageSources.length

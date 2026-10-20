@@ -1,6 +1,28 @@
 import { rollPool } from "./engine/dice.js";
 import { activeClassBonuses } from "./game/minor-character/sheet.js";
-export function resolveAction(sheet, action, die, injuryCut = 0) {
+export const IMPACTS = ['Low', 'Normal', 'High', 'Massive'];
+const MAX_STAKES_MARKS = 8;
+export function validActionStakes(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        return false;
+    const stakes = value;
+    if (Object.keys(stakes).some(key => !['narrative', 'harm'].includes(key)))
+        return false;
+    if (typeof stakes.narrative !== 'string')
+        return false;
+    if (stakes.harm === null)
+        return true;
+    const harm = stakes.harm;
+    if (!harm || typeof harm !== 'object' || Array.isArray(harm))
+        return false;
+    if (Object.keys(harm).some(key => !['onConflict', 'onDisaster', 'targetAspectId', 'overflowChoice'].includes(key)))
+        return false;
+    const marks = (count) => Number.isInteger(count) && count >= 0 && count <= MAX_STAKES_MARKS;
+    return marks(harm.onConflict) && marks(harm.onDisaster)
+        && (harm.targetAspectId === null || (typeof harm.targetAspectId === 'string' && !!harm.targetAspectId.trim()))
+        && (harm.overflowChoice === 'injury' || harm.overflowChoice === 'burn');
+}
+export function prepareAction(sheet, action, injuryCut = 0) {
     if (!action || typeof action.description !== 'string' || !action.description.trim()
         || (action.edge !== null && !sheet.edges.includes(action.edge))
         || !Array.isArray(action.advantageSources) || action.advantageSources.length > 2
@@ -9,6 +31,12 @@ export function resolveAction(sheet, action, die, injuryCut = 0) {
         || (action.skill !== null && (!['skill', 'lore'].includes(action.skill.kind)
             || typeof action.skill.name !== 'string' || !action.skill.name.trim()))) {
         throw new Error('Invalid action declaration. Choose one Edge, one Skill or Lore and at most two distinct Advantages.');
+    }
+    if (action.stakes !== undefined && !validActionStakes(action.stakes))
+        throw new Error('Invalid accepted stakes.');
+    if (action.stakes?.harm && action.stakes.harm.targetAspectId !== null
+        && !sheet.aspects.some(aspect => aspect.id === action.stakes.harm.targetAspectId)) {
+        throw new Error('Accepted stakes name an aspect that is not active.');
     }
     const ranks = action.skill?.kind === 'lore' ? sheet.lores : sheet.skills;
     const rank = action.skill && Object.hasOwn(ranks, action.skill.name) ? ranks[action.skill.name] : 0;
@@ -47,14 +75,29 @@ export function resolveAction(sheet, action, die, injuryCut = 0) {
     const declaredTotal = mandatoryCuts + voluntaryCuts;
     if (action.permission !== undefined && typeof action.permission !== 'string')
         throw new Error('Invalid permission.');
-    const impacts = ['Low', 'Normal', 'High', 'Massive'];
     const declaredBase = action.baseImpact ?? 'Normal';
-    if (!impacts.includes(declaredBase))
+    if (!IMPACTS.includes(declaredBase))
         throw new Error('Invalid impact.');
     const base = action.battery === 'massive' ? 'Massive' : declaredBase;
-    const finalImpact = impacts[Math.max(0, Math.min(3, impacts.indexOf(base) + Number(impact) - Number(effectiveRankGap === 2)))];
-    if ((declaredTotal >= 3 || base === 'Massive' || finalImpact === 'Massive') && !action.permission?.trim()) {
+    const finalImpact = IMPACTS[Math.max(0, Math.min(3, IMPACTS.indexOf(base) + Number(impact) - Number(effectiveRankGap === 2)))];
+    const needsPermission = declaredTotal >= 3 || base === 'Massive' || finalImpact === 'Massive';
+    return { pool, origin, cuts, impact: finalImpact, needsPermission };
+}
+export function resolveAction(sheet, action, die, injuryCut = 0) {
+    const prepared = prepareAction(sheet, action, injuryCut);
+    if (prepared.needsPermission && !action.permission?.trim()) {
         throw new Error('Three or more Cuts or Massive impact require a manual permission ruling before rolling.');
     }
-    return { origin, ...rollPool(pool, cuts.total, die), cuts, impact: finalImpact };
+    const { pool, origin, cuts, impact } = prepared;
+    return { origin, ...rollPool(pool, cuts.total, die), cuts, impact };
+}
+/** The harm an accepted stake owes for a recorded outcome; zero marks means no harm event. */
+export function stakedHarmMarks(stakes, outcome) {
+    if (!stakes?.harm)
+        return 0;
+    if (outcome === 'Conflict')
+        return stakes.harm.onConflict;
+    if (outcome === 'Disaster')
+        return stakes.harm.onDisaster;
+    return 0;
 }

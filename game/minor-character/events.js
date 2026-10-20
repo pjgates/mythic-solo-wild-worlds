@@ -2,7 +2,8 @@ import { memoryConflictReviewEvent, memoryOutcomeEvent, resolveMemoryDestination
 import { bindMemoryEvent, applyMemoryBinding } from "./memory-bindings.js";
 import { acceptSceneReviewEvent } from "./scene-acceptance.js";
 import { saveSceneReviewEvent, reviseSceneReviewEvent, cancelSceneReviewEvent } from "./scene-review.js";
-import { assertActionReferences, assertRecordedAction } from "./rules.js";
+import { assertActionReferences, assertRecordedAction, expectedActionPending } from "./rules.js";
+import { applyProposalAcceptance, applyProposalEvent } from "./proposals.js";
 import { editableSlots } from "./editable-fields.js";
 import { validateMinorState } from "./validate-state.js";
 import { manifestElement, sceneBoundary, switchClass } from "./play.js";
@@ -265,17 +266,30 @@ export function applyOwnedMinorEvent(state, event, replay) {
     if (event.kind === 'action-resolved') {
         assertActionReferences(state, event.command);
         assertRecordedAction(state, event);
-        const expected = event.result.outcome !== 'Triumph' || event.result.twist
-            ? { kind: 'manual-action', operationId: event.command.originalActionCommand.operationId } : null;
-        if (!sameValue(event.pending, expected))
+        if (!sameValue(event.pending, expectedActionPending(event)))
             throw new Error('Recorded pending outcome disagrees with the action.');
         if (state.pending)
             throw new Error('Finish the pending manual adjudication first.');
+        if (event.command.proposalId !== undefined) {
+            applyProposalAcceptance(next, event.command.proposalId, event.command.originalActionCommand.operationId);
+        }
+        else if (next.proposal)
+            throw new Error('Accept or cancel the pending proposal first.');
         if (event.command.originalActionCommand.action.battery !== undefined) {
             applyActionBattery(next, event, JSON.stringify([event.command.originalActionCommand.operationId, 'mana-strain']));
             validateMinorState(next, replay);
         }
+        if (event.harm) {
+            applyHarmEvent(next, event.harm);
+            validateMinorState(next, replay);
+        }
         next.pending = structuredClone(event.pending);
+        return next;
+    }
+    if (event.kind === 'proposal-saved' || event.kind === 'proposal-revised' || event.kind === 'proposal-cancelled'
+        || event.kind === 'turn-decided') {
+        applyProposalEvent(next, event);
+        validateMinorState(next, replay);
         return next;
     }
     if (event.kind === 'manual-handled') {

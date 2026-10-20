@@ -54,8 +54,8 @@ export function branchCampaign(campaign, targetRevision, newBranchId) {
     for (const entry of journalPrefix) {
         stateAtTarget = applyMinorEvent(stateAtTarget, entry.event);
     }
-    if (stateAtTarget.pending !== null || stateAtTarget.sceneReview !== null) {
-        throw new Error('Cannot branch from an unsettled revision with pending adjudication or scene review.');
+    if (stateAtTarget.pending !== null || stateAtTarget.sceneReview !== null || stateAtTarget.proposal) {
+        throw new Error('Cannot branch from an unsettled revision with pending adjudication, proposal or scene review.');
     }
     const oldBranchId = verifiedSource.branchId;
     for (const record of stateAtTarget.sceneRecords) {

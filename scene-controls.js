@@ -1,9 +1,9 @@
-export function createSceneControls(model, session, connections, available, ready, start) {
+export function createSceneControls(model, session, connections, available, ready, start, persist = () => { }) {
     const element = document.createElement('section');
     element.setAttribute('aria-label', 'Scene GM');
     element.innerHTML = `<h3>End scene</h3>
-    <label>Saved GM connection <select data-gm-connection><option value="">Choose a connection…</option></select></label>
-    <label>GM model ID <input class="text_pole" data-gm-model placeholder="Enter the model ID" autocomplete="off"></label>
+    <label>Scene GM connection <select data-gm-connection><option value="">Choose a connection…</option></select></label>
+    <label>Scene GM model ID <input class="text_pole" data-gm-model placeholder="Enter the model ID" autocomplete="off"></label>
     <div class="mc-actions"><button type="button" class="menu_button" data-gm-refresh>Refresh connections</button>
       <button type="button" class="menu_button" data-gm-request>End scene</button>
       <button type="button" class="menu_button" data-gm-manual>Draft scene manually</button>
@@ -26,8 +26,20 @@ export function createSceneControls(model, session, connections, available, read
         status.textContent = session.message || setup;
     }
     function select() {
-        model.select({ connectionId: connection.value, modelId: modelId.value });
+        const selection = { connectionId: connection.value, modelId: modelId.value };
+        model.select(selection);
         session.invalidate();
+        persist(selection);
+        render();
+    }
+    /** Reflects a selection restored from saved settings; the model already holds it. */
+    function sync() {
+        const selected = model.selection;
+        if (selected.connectionId && ![...connection.querySelectorAll('option')].some(option => option.value === selected.connectionId)) {
+            connection.add(new Option('Selected connection unavailable', selected.connectionId));
+        }
+        connection.value = selected.connectionId;
+        modelId.value = selected.modelId;
         render();
     }
     connection.onchange = select;
@@ -62,5 +74,5 @@ export function createSceneControls(model, session, connections, available, read
     }
     refreshButton.onclick = () => { session.invalidate(); void refresh(); };
     render();
-    return { element, render, refresh };
+    return { element, render, refresh, sync };
 }

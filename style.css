@@ -87,15 +87,16 @@
 @media (min-width: 1024px) {
   #sheld.mc-sheet-open {
     width: min(100%, calc(var(--sheldWidth, 50vw) + 420px));
-    display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 420px); grid-template-rows: minmax(0, 1fr) auto;
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 420px); grid-template-rows: minmax(0, 1fr) auto auto;
   }
   #sheld.mc-sheet-open > #chat { grid-column: 1; grid-row: 1; min-width: 0; min-height: 0; max-height: none; }
-  #sheld.mc-sheet-open > #form_sheld { grid-column: 1; grid-row: 2; min-width: 0; }
+  #sheld.mc-sheet-open > #minor-character-actions { grid-column: 1; grid-row: 2; min-width: 0; }
+  #sheld.mc-sheet-open > #form_sheld { grid-column: 1; grid-row: 3; min-width: 0; }
   #sheld.mc-sheet-open > #minor-character-sheet { grid-column: 2; grid-row: 1 / -1; }
 }
 @media (max-width: 1023px) {
   #sheld.mc-sheet-open > #minor-character-sheet { position: absolute; inset: 0; width: 100%; height: 100%; }
-  #sheld.mc-sheet-open > #chat, #sheld.mc-sheet-open > #form_sheld { visibility: hidden; }
+  #sheld.mc-sheet-open > #chat, #sheld.mc-sheet-open > #minor-character-actions, #sheld.mc-sheet-open > #form_sheld { visibility: hidden; }
 }
 #minor-character-sheet section { border-bottom: 1px solid var(--mc-border); padding: 12px 0; }
 #minor-character-sheet p, #minor-character-sheet li { line-height: 1.5; }
@@ -115,13 +116,51 @@
   #minor-character-sheet { width: 100%; border-radius: 0; }
   #minor-character-sheet .mc-content { padding: 0 14px 24px; }
 }
-#minor-character-actions { margin: 16px; padding: 16px; border: 1px solid var(--mc-border); border-radius: 12px; overflow-wrap: anywhere; min-width: 0; box-sizing: border-box; }
-#minor-character-actions article { padding: 10px 0; border-bottom: 1px solid var(--mc-border); }
-#minor-character-actions form { display: grid; gap: 12px; min-width: 0; }
-#minor-character-actions label { display: grid; gap: 6px; min-width: 0; }
+/* Inline action card, mobile first: one header line between transcript and composer; expanded states scroll inside. */
+#minor-character-actions {
+  flex: 0 0 auto; margin: 2px 4px; padding: 0 10px; border: 1px solid var(--mc-border); border-radius: 12px;
+  overflow-wrap: anywhere; min-width: 0; box-sizing: border-box; max-height: 25dvh; overflow: auto; overscroll-behavior: contain;
+}
+#minor-character-actions.mc-card-expanded { max-height: 50dvh; padding: 4px 12px 12px; }
+#minor-character-actions .mc-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; }
+#minor-character-actions .mc-card-summary { margin: 0; flex: 1 1 auto; min-width: 0; font-size: .9375em; line-height: 1.3; }
+#minor-character-actions:not(.mc-card-expanded) .mc-card-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#minor-character-actions .mc-card-header button { width: auto; flex: 0 0 auto; padding: 8px 14px; border-radius: 999px; }
+#minor-character-actions .mc-card-status { margin: 4px 0 8px; }
+#minor-character-actions .mc-card-status:empty { display: none; }
+#minor-character-actions .mc-actions { display: grid; gap: 8px; margin: 10px 0; }
+#minor-character-actions .mc-actions button { min-height: 48px; }
+#minor-character-actions .mc-flow-secondary { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--mc-border); }
+#minor-character-actions .mc-flow-secondary button { min-height: 44px; opacity: .85; }
+#minor-character-actions .mc-proposal .mc-actions button:first-child { background: color-mix(in srgb, var(--mc-accent) 24%, var(--mc-panel)); font-weight: 600; }
+#minor-character-actions article { padding: 8px 0; border-bottom: 1px solid var(--mc-border); }
+#minor-character-actions article.mc-proposal {
+  margin: 8px 0; padding: 10px; border: 1px solid var(--mc-border); border-left: 3px solid var(--mc-gold); border-radius: 6px; background: var(--mc-raised);
+}
+#minor-character-actions .mc-proposal h4 { margin: 0 0 6px; }
+#minor-character-actions .mc-proposal > p { margin: 4px 0; }
+#minor-character-actions .mc-proposal-stakes-line { font-weight: 600; }
+#minor-character-actions .mc-proposal details { margin-top: 6px; }
+#minor-character-actions .mc-proposal ul { margin: 6px 0; padding-left: 20px; }
+#minor-character-actions .mc-pending-stakes { margin-top: 10px; }
+/* Who read the message: one muted line in the expanded details only, never on the collapsed card. */
+#minor-character-actions .mc-triage-reading { margin: 2px 0 6px; font-size: .875em; line-height: 1.4; opacity: .7; }
+#minor-character-actions form { display: grid; gap: 10px; min-width: 0; }
+#minor-character-actions label { display: grid; gap: 4px; min-width: 0; }
 #minor-character-actions fieldset { min-width: 0; max-width: 100%; box-sizing: border-box; }
-#minor-character-actions input, #minor-character-actions select, #minor-character-actions button { min-height: 44px; width: 100%; max-width: 100%; box-sizing: border-box; }
+#minor-character-actions input, #minor-character-actions select, #minor-character-actions button { min-height: 44px; width: 100%; max-width: 100%; box-sizing: border-box; font-size: 16px; }
 #minor-character-actions summary { cursor: pointer; min-height: 44px; padding-top: 10px; }
+#minor-character-actions h4 { margin: 8px 0 2px; }
+@media (min-width: 600px) {
+  #minor-character-actions { margin: 4px 8px; padding: 0 14px; }
+  #minor-character-actions.mc-card-expanded { padding: 6px 16px 14px; }
+  #minor-character-actions .mc-actions { grid-template-columns: repeat(auto-fit, minmax(160px, max-content)); }
+  #minor-character-actions form.mc-action-declaration, #minor-character-actions form.mc-stakes-adjudication,
+  #minor-character-actions form.mc-proposal-stakes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #minor-character-actions form.mc-action-declaration > :is(h4, p, button, label:first-of-type),
+  #minor-character-actions form.mc-stakes-adjudication > :is(h4, button, label:first-of-type),
+  #minor-character-actions form.mc-proposal-stakes > :is(button, label:first-of-type) { grid-column: 1 / -1; }
+}
 
 #minor-character-sheet .mc-play-controls { min-width: 0; }
 #minor-character-sheet .mc-play-controls details { margin: 8px 0; border-top: 1px solid var(--mc-border); padding-top: 4px; min-width: 0; }
@@ -132,6 +171,29 @@
 #minor-character-sheet .mc-play-controls .mc-actions button { width: auto; }
 #minor-character-sheet .mc-play-controls .mc-checkbox { display: flex; align-items: center; min-height: 44px; gap: 12px; }
 #minor-character-sheet .mc-play-controls .mc-checkbox input { width: 22px; height: 22px; min-width: 22px; min-height: 22px; flex: 0 0 22px; accent-color: var(--mc-accent); }
+
+/* Play settings and Scene GM: one stacked column with 48px rows; two columns only on wide sheets. */
+#minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) { min-width: 0; }
+#minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) label:not(.mc-checkbox) { display: grid; gap: 4px; margin: 8px 0; }
+#minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) :is(input:not([type="checkbox"]), select) { width: 100%; min-height: 48px; box-sizing: border-box; font-size: 16px; }
+#minor-character-sheet .mc-play-settings .mc-checkbox { display: flex; align-items: center; gap: 12px; min-height: 48px; margin: 4px 0; }
+#minor-character-sheet .mc-play-settings .mc-role-note { margin: 8px 0 0; opacity: .8; font-size: .9375em; }
+#minor-character-sheet .mc-play-settings .mc-checkbox input { width: 24px; height: 24px; min-width: 24px; min-height: 24px; flex: 0 0 24px; accent-color: var(--mc-accent); }
+#minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) .mc-actions { display: grid; gap: 8px; margin: 8px 0; }
+#minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) .mc-actions button { min-height: 48px; width: 100%; }
+/* Triage (Jev): the key field with Show and Clear as two equal buttons under it; everything full width on a phone. */
+#minor-character-sheet .mc-play-settings .mc-triage { min-width: 0; margin: 8px 0 12px; padding: 0 0 8px; border-bottom: 1px solid var(--mc-border); }
+#minor-character-sheet .mc-play-settings .mc-triage h4 { margin: 8px 0 0; font-size: 1em; }
+#minor-character-sheet .mc-play-settings .mc-triage .mc-role-note { margin: 0 0 8px; }
+#minor-character-sheet .mc-play-settings .mc-triage-key-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 4px; }
+#minor-character-sheet .mc-play-settings .mc-triage-key-actions button { min-height: 48px; width: 100%; min-width: 0; }
+#minor-character-sheet .mc-play-settings [data-triage-status]:empty { display: none; }
+@media (min-width: 600px) {
+  #minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) .mc-actions { grid-template-columns: repeat(auto-fit, minmax(160px, max-content)); }
+  #minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) .mc-actions button { width: auto; }
+  #minor-character-sheet .mc-play-settings .mc-triage-key-actions { grid-template-columns: repeat(2, minmax(120px, max-content)); }
+  #minor-character-sheet .mc-play-settings .mc-triage-key-actions button { width: auto; }
+}
 
 #minor-character-sheet .mc-corrections form, #minor-character-sheet .mc-corrections label { display: grid; gap: 8px; }
 #minor-character-sheet .mc-corrections form { gap: 12px; }

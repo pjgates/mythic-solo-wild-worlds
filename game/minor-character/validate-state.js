@@ -6,6 +6,7 @@ import { validateCharacter } from "../../engine/character.js";
 import { EDGES, RANKS } from "./sheet.js";
 import { ELEMENTS } from "./state.js";
 import { validSceneStartAnchor } from "./scene-anchor.js";
+import { validProposalState } from "./proposals.js";
 const text = (value) => typeof value === 'string';
 const id = (value) => text(value) && !!value.trim();
 const integer = (value) => Number.isInteger(value) && value >= 0;
@@ -193,6 +194,7 @@ function validateProfiles(s, replay) {
 // Validate the complete game-owned persisted shape before shared validation or projection.
 export function validateMinorState(value, replay) {
     const s = value;
+    requireState(object(s) && validProposalState(s));
     requireState(object(s) && id(s.playerCharacterId) && all(s.characters, characterShape)
         && s.characters.length > 0 && all(s.classState, classShape)
         && all(s.definitions, definition => named(definition) && Number.isSafeInteger(definition.revision) && definition.revision >= 1

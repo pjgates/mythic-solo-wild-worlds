@@ -2,6 +2,7 @@ import { currentMemoryPublications } from "./memory-publication.js";
 import { projectSheet } from "./sheet.js";
 import { projectProfile } from "./profile-views.js";
 import { listEditableFields } from "./editing.js";
+import { projectDeclaration, projectProposal, projectTriage } from "./proposals.js";
 export function projectPlayer(campaign) {
     const state = campaign.snapshot.state;
     const character = state.characters.find(entry => entry.id === state.playerCharacterId);
@@ -39,6 +40,8 @@ export function projectPlayer(campaign) {
             knives: state.world.knives.map(({ id, name, beat, status }) => ({ id, name, beat, status })),
         },
         history: projectHistory(campaign),
+        proposal: state.proposal ? projectProposal(state.proposal) : null,
+        turns: projectTurns(campaign),
         pendingManual: state.pending?.operationId ?? null, sceneReview: projectSceneReview(state),
         memoryPublications: projectMemoryPublicationStatus(state),
         rules: { gameId: campaign.rules.gameId, revision: campaign.rules.revision }, opening: state.world.opening,
@@ -230,20 +233,7 @@ export function projectActionReceipt(entry) {
         command: { operationId: c.operationId, campaignId: c.campaignId, branchId: c.branchId,
             expectedRevision: c.expectedRevision,
             source: { messageId: c.source.messageId, messageRevision: c.source.messageRevision },
-            action: { description: a.description, edge: a.edge,
-                skill: a.skill === null ? null : { kind: a.skill.kind, name: a.skill.name },
-                advantageSources: [...a.advantageSources],
-                ...(a.permission === undefined ? {} : { permission: a.permission }),
-                ...(a.baseImpact === undefined ? {} : { baseImpact: a.baseImpact }),
-                ...(a.battery === undefined ? {} : { battery: a.battery }),
-                ...(a.cuts === undefined ? {} : { cuts: {
-                        ...(a.cuts.difficulty === undefined ? {} : { difficulty: a.cuts.difficulty }),
-                        ...(a.cuts.rankGap === undefined ? {} : { rankGap: a.cuts.rankGap }),
-                        ...(a.cuts.mires === undefined ? {} : { mires: [...a.cuts.mires] }),
-                        ...(a.cuts.precision === undefined ? {} : { precision: a.cuts.precision }),
-                        ...(a.cuts.impact === undefined ? {} : { impact: a.cuts.impact }),
-                    } }),
-            },
+            action: projectDeclaration(a),
         },
         result: { pool: r.pool, draws: [...r.draws], survivors: [...r.survivors],
             fallback: r.fallback, outcome: r.outcome, twist: r.twist,
@@ -257,11 +247,30 @@ export function projectActionReceipt(entry) {
         revision: receipt.revision, costs: [...receipt.costs], effects: [...receipt.effects],
     };
 }
+// Message anchors with a recorded outcome, in journal order: decisions, cancellations and receipts.
+function projectTurns(campaign) {
+    return campaign.journal.flatMap(entry => {
+        const event = entry.event;
+        const source = entry.context?.source;
+        if (!source)
+            return [];
+        const anchor = { messageId: source.messageId, messageRevision: source.messageRevision, operationId: entry.operationId };
+        if (event.kind === 'turn-decided')
+            return [{ ...anchor, kind: event.record.kind, ...projectTriage(event.record.triage) }];
+        if (event.kind === 'proposal-cancelled')
+            return [{ ...anchor, ...event.source, kind: 'cancelled' }];
+        if (event.kind === 'action-resolved')
+            return [{ ...anchor, kind: event.command.proposalId === undefined ? 'resolved' : 'proposed' }];
+        return [];
+    });
+}
 function projectHistory(campaign) {
     const secrets = campaign.snapshot.state.keeperSecrets ?? [];
     return campaign.journal.flatMap(entry => {
         const event = entry.event;
         if (event.kind === 'keeper-secret-added')
+            return [];
+        if (event.kind === 'turn-decided' && event.record.kind === 'narrative')
             return [];
         if (event.kind === 'keeper-secret-revealed') {
             const secret = secrets.find(s => s.id === event.command.secretId);
@@ -277,6 +286,8 @@ function projectHistory(campaign) {
         const receipt = projectActionReceipt(entry);
         if (receipt)
             item.receipt = receipt;
+        if (event.kind === 'action-resolved' && event.harm)
+            item.harm = structuredClone(event.harm);
         if (event.kind === 'field-corrected')
             item.correction = {
                 label: event.label, before: event.before, after: event.after, reason: event.command.reason,

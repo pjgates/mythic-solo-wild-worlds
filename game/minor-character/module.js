@@ -7,6 +7,7 @@ import { applyMinorEvent, applyOwnedMinorEvent, sameValue } from "./events.js";
 import { correctField } from "./editing.js";
 import { correctFields } from "./batch-editing.js";
 import { resolveMinorAction } from "./rules.js";
+import { decideCancelProposal, decideRecordTurn, decideReviseProposal, decideSaveProposal, describeProposalEvent, } from "./proposals.js";
 import { readMinorCampaign } from "./read.js";
 import { manifestElement, switchClass } from "./play.js";
 import { MINOR_RULES } from "./state.js";
@@ -81,8 +82,18 @@ export const minorCharacterGame = {
             const { action, ...originalContext } = body.originalActionCommand;
             if (!sameValue(context, originalContext))
                 throw new Error('Action provenance disagrees with its captured command.');
+            if (state.proposal && body.proposalId === undefined)
+                throw new Error('Accept or cancel the pending proposal first.');
             return resolveMinorAction(state, body, die);
         }
+        if (body.kind === 'save-proposal')
+            return decideSaveProposal(state, context, body);
+        if (body.kind === 'revise-proposal')
+            return decideReviseProposal(state, body);
+        if (body.kind === 'cancel-proposal')
+            return decideCancelProposal(state, context, body);
+        if (body.kind === 'record-turn')
+            return decideRecordTurn(state, context, body);
         if (body.kind === 'manual-handled') {
             const event = { kind: 'manual-handled', command: structuredClone(body), pending: null };
             applyMinorEvent(state, event);
@@ -295,7 +306,10 @@ export const minorCharacterGame = {
             return `Tournament bout ${event.command.boutId} resolved: ${event.winner} wins.`;
         if (event.kind === 'tournament-interlude-spent')
             return `Tournament interlude task spent: ${event.note}`;
+        if (event.kind === 'proposal-saved' || event.kind === 'proposal-revised' || event.kind === 'proposal-cancelled'
+            || event.kind === 'turn-decided')
+            return describeProposalEvent(event);
         throw new Error('Unsupported Minor Character event.');
     },
-    hasPending: state => state.pending !== null || state.sceneReview !== null,
+    hasPending: state => state.pending !== null || state.sceneReview !== null || !!state.proposal,
 };

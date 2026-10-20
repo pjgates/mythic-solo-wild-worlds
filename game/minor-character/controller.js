@@ -5,7 +5,9 @@ import { CampaignController as EngineController } from "../../engine/controller.
 import { rollD6 } from "../../engine/dice.js";
 import { createMinorCampaign, minorCharacterGame } from "./module.js";
 import { prepareMinorAction } from "./rules.js";
+import { manaStrainCut } from "./strain.js";
 import { projectActionReceipt, projectPlayer } from "./views.js";
+import { projectNarrator } from "./narrator-projection.js";
 import { exportCheckpoint } from "./checkpoints.js";
 import { projectKeeperSecrets, } from "./encounters-keeper.js";
 export class CampaignController {
@@ -34,6 +36,18 @@ export class CampaignController {
     get playerView() {
         const campaign = this.#engine.state.campaign;
         return campaign ? projectPlayer(campaign) : undefined;
+    }
+    /** The automatic Mana Strain Cut a declaration would carry right now, so proposals are classified as they will roll. */
+    manaStrainCut(skill) {
+        const campaign = this.#engine.state.campaign;
+        return campaign ? manaStrainCut(campaign.snapshot.state, skill) : 0;
+    }
+    /** The narrator's public projection for the open campaign; absent while nothing is open or readable. */
+    projectNarrator(mythic) {
+        const { campaign, available } = this.#engine.state;
+        if (!campaign || !available)
+            return undefined;
+        return { text: projectNarrator(campaign, mythic), revision: campaign.revision };
     }
     get keeperView() {
         const campaign = this.#engine.state.campaign;
@@ -102,14 +116,26 @@ export class CampaignController {
             throw new Error('Campaign unavailable or saving.');
         return entry;
     }
-    async submitAction(command) {
+    async submitAction(command, proposalId) {
         const existing = this.#recorded(command);
         const { action, ...context } = command;
         const entry = existing ?? await this.#engine.submit({ ...context,
-            body: prepareMinorAction(this.#engine.state.campaign.snapshot.state, command) });
+            body: prepareMinorAction(this.#engine.state.campaign.snapshot.state, command, proposalId) });
         if (entry.event.kind !== 'action-resolved')
             throw new Error('This ID belongs to another operation kind.');
         return projectActionReceipt(entry);
+    }
+    saveProposal(context, proposal) {
+        return this.#submitEvent(context, { kind: 'save-proposal', proposal }, 'proposal-saved');
+    }
+    reviseProposal(context, proposalId, declaration) {
+        return this.#submitEvent(context, { kind: 'revise-proposal', proposalId, declaration }, 'proposal-revised');
+    }
+    cancelProposal(context, proposalId, note) {
+        return this.#submitEvent(context, { kind: 'cancel-proposal', proposalId, note }, 'proposal-cancelled');
+    }
+    recordTurn(context, decision, note, triage) {
+        return this.#submitEvent(context, { kind: 'record-turn', decision, note, ...(triage === undefined ? {} : { triage }) }, 'turn-decided');
     }
     async correctSheet(command) {
         const existing = this.#recorded(command);
