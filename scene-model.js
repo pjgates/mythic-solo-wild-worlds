@@ -98,6 +98,9 @@ export class SceneModel {
         catch (error) {
             if (error instanceof ModelFailure)
                 throw error;
+            if (error instanceof Error && /Secret id not found for api_key_/i.test(error.message)) {
+                throw new ModelFailure('The GM connection’s saved API key was replaced or deleted. In Connection Profile, select the Model Target and tap Update (or save a new Model Only profile), then tap Refresh connections.');
+            }
             throw new ModelFailure('GM request failed or returned an invalid proposal. Retry or use manual review; no changes saved.');
         }
         finally {

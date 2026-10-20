@@ -74,7 +74,11 @@ export class DecideModel {
                 throw new DecideFailure(error.message);
             if (active.signal.aborted && epoch === this.#epoch)
                 throw new DecideFailure('The draft role timed out or was cancelled.');
-            throw new DecideFailure(`The draft request failed: ${error instanceof Error ? error.message : String(error)}`);
+            const detail = error instanceof Error ? error.message : String(error);
+            if (/Secret id not found for api_key_/i.test(detail)) {
+                throw new DecideFailure('The draft connection’s saved API key was replaced or deleted. In Connection Profile, select the Model Target and tap Update (or save a new Model Only profile), then tap Refresh connections.');
+            }
+            throw new DecideFailure(`The draft request failed: ${detail}`);
         }
         finally {
             clearTimeout(timer);
