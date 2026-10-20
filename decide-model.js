@@ -55,7 +55,8 @@ export class DecideModel {
             if (!response || typeof response !== 'object' || typeof response.content !== 'string') {
                 throw new DecideFailure('The draft role returned no readable reply.');
             }
-            const rawContent = stripFences(response.content);
+            const rawReply = response.content;
+            const rawContent = stripFences(rawReply);
             if (!rawContent)
                 throw new DecideFailure('The draft role returned an empty reply.');
             let parsed;
@@ -63,7 +64,7 @@ export class DecideModel {
                 parsed = parseJsonObject(rawContent);
             }
             catch {
-                throw new DecideFailure('The draft role did not return JSON.');
+                throw new DecideFailure(`The draft role did not return JSON (${previewReply(rawReply)}).`);
             }
             return readTurnDecision(parsed, input.sheet);
         }
@@ -86,25 +87,76 @@ export class DecideModel {
         }
     }
 }
-/** Some chat models wrap JSON in a code fence despite instructions; the fence is the only repair made. */
+/** Some chat models wrap JSON in a code fence despite instructions; returns the last fenced block or trimmed content. */
 export function stripFences(content) {
     const trimmed = content.trim();
     const full = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
     if (full)
         return full[1].trim();
-    const embedded = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-    return embedded ? embedded[1].trim() : trimmed;
+    const blocks = [...trimmed.matchAll(/```(?:json)?\s*([\s\S]*?)\s*```/gi)];
+    for (let i = blocks.length - 1; i >= 0; i--) {
+        const block = blocks[i][1].trim();
+        if (block.includes('{'))
+            return block;
+    }
+    return blocks.length ? blocks[blocks.length - 1][1].trim() : trimmed;
 }
-/** Parses a JSON string, falling back to the outermost `{...}` block if a chat model added brief prose around a single JSON object. */
+/** Parses a JSON string, falling back to any balanced `{...}` object in the reply (from the end) if a chat model added prose. */
 export function parseJsonObject(content) {
     try {
         return JSON.parse(content);
     }
     catch (firstError) {
+        const candidates = extractBalancedJsonObjects(content);
+        for (let i = candidates.length - 1; i >= 0; i--) {
+            try {
+                return JSON.parse(candidates[i]);
+            }
+            catch { /* try earlier candidate */ }
+        }
         const start = content.indexOf('{');
         const end = content.lastIndexOf('}');
         if (start >= 0 && end > start)
             return JSON.parse(content.slice(start, end + 1));
         throw firstError;
     }
+}
+function extractBalancedJsonObjects(text) {
+    const results = [];
+    let depth = 0, start = -1, inString = false, escape = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (escape) {
+            escape = false;
+            continue;
+        }
+        if (inString) {
+            if (ch === '\\')
+                escape = true;
+            else if (ch === '"')
+                inString = false;
+            continue;
+        }
+        if (ch === '"') {
+            inString = true;
+            continue;
+        }
+        if (ch === '{') {
+            if (depth === 0)
+                start = i;
+            depth++;
+        }
+        else if (ch === '}' && depth > 0) {
+            depth--;
+            if (depth === 0 && start >= 0) {
+                results.push(text.slice(start, i + 1));
+                start = -1;
+            }
+        }
+    }
+    return results;
+}
+function previewReply(content) {
+    const flat = content.replace(/\s+/g, ' ').trim();
+    return flat.length > 140 ? `${flat.slice(0, 140)}…` : flat;
 }
