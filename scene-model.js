@@ -1,3 +1,4 @@
+import { stripFences, parseJsonObject } from "./decide-model.js";
 import { sameValue } from "./game/minor-character/events.js";
 import { readSceneProposal } from "./game/minor-character/scene-proposal.js";
 import { mapSceneConnection } from "./scene-connection.js";
@@ -92,7 +93,7 @@ export class SceneModel {
             if (!response || typeof response !== 'object' || typeof response.content !== 'string') {
                 throw new ModelFailure('GM returned an invalid proposal.');
             }
-            return readSceneProposal(JSON.parse(response.content), frozen, views);
+            return readSceneProposal(parseJsonObject(stripFences(response.content)), frozen, views);
         }
         catch (error) {
             if (error instanceof ModelFailure)

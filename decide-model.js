@@ -55,9 +55,12 @@ export class DecideModel {
             if (!response || typeof response !== 'object' || typeof response.content !== 'string') {
                 throw new DecideFailure('The draft role returned no readable reply.');
             }
+            const rawContent = stripFences(response.content);
+            if (!rawContent)
+                throw new DecideFailure('The draft role returned an empty reply.');
             let parsed;
             try {
-                parsed = JSON.parse(stripFences(response.content));
+                parsed = parseJsonObject(rawContent);
             }
             catch {
                 throw new DecideFailure('The draft role did not return JSON.');
@@ -81,6 +84,23 @@ export class DecideModel {
 }
 /** Some chat models wrap JSON in a code fence despite instructions; the fence is the only repair made. */
 export function stripFences(content) {
-    const match = content.trim().match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-    return match ? match[1] : content.trim();
+    const trimmed = content.trim();
+    const full = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+    if (full)
+        return full[1].trim();
+    const embedded = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    return embedded ? embedded[1].trim() : trimmed;
+}
+/** Parses a JSON string, falling back to the outermost `{...}` block if a chat model added brief prose around a single JSON object. */
+export function parseJsonObject(content) {
+    try {
+        return JSON.parse(content);
+    }
+    catch (firstError) {
+        const start = content.indexOf('{');
+        const end = content.lastIndexOf('}');
+        if (start >= 0 && end > start)
+            return JSON.parse(content.slice(start, end + 1));
+        throw firstError;
+    }
 }
