@@ -239,4 +239,87 @@ export function validateMinorState(value, replay) {
         requireState(character.meters.length === 4
             && ['exposure', 'canon', 'divergence', 'breakthrough'].every(name => character.meters.filter(meter => meter.policy === `minor-character/${name}`).length === 1));
     }
+    const people = [...s.characters.map(person => person.id), ...s.world.characters.map(person => person.id)];
+    if (s.bankedTwists !== undefined) {
+        requireState(all(s.bankedTwists, twist => object(twist) && id(twist.id) && id(twist.sceneId)
+            && id(twist.operationId) && id(twist.description) && typeof twist.spent === 'boolean'
+            && (twist.spentNote === undefined || id(twist.spentNote)))
+            && unique(s.bankedTwists.map(twist => twist.id)));
+    }
+    if (s.exposureLog !== undefined) {
+        requireState(all(s.exposureLog, inc => object(inc) && id(inc.id) && id(inc.witness) && id(inc.description)
+            && typeof inc.absorbedByCub === 'boolean'
+            && (inc.threshold === null || ['rumour', 'suspicion', 'fact'].includes(inc.threshold))
+            && (inc.learnedFact === null || id(inc.learnedFact)))
+            && unique(s.exposureLog.map(inc => inc.id)));
+    }
+    if (s.milestoneAllowance !== undefined) {
+        requireState(object(s.milestoneAllowance)
+            && integer(s.milestoneAllowance.minorThisSession) && s.milestoneAllowance.minorThisSession <= 1
+            && integer(s.milestoneAllowance.majorThisArc) && s.milestoneAllowance.majorThisArc <= 1);
+    }
+    if (s.coreDevelopments !== undefined) {
+        requireState(object(s.coreDevelopments)
+            && typeof s.coreDevelopments.confluence === 'boolean'
+            && typeof s.coreDevelopments.awakening === 'boolean'
+            && typeof s.coreDevelopments.awakeningUsedThisArc === 'boolean'
+            && (s.coreDevelopments.awakeningActiveSceneId === null || id(s.coreDevelopments.awakeningActiveSceneId)));
+    }
+    if (s.keeperSecrets !== undefined) {
+        requireState(all(s.keeperSecrets, sec => object(sec) && id(sec.id)
+            && (sec.personId === null || people.includes(sec.personId))
+            && id(sec.title) && id(sec.secret) && ['hidden', 'revealed'].includes(sec.status)
+            && (sec.revealedOperationId === undefined || id(sec.revealedOperationId))
+            && all(sec.clues, clue => object(clue) && id(clue.id) && id(clue.text) && typeof clue.revealed === 'boolean'
+                && (clue.revealedOperationId === undefined || id(clue.revealedOperationId)))
+            && unique(sec.clues.map(clue => clue.id)))
+            && unique(s.keeperSecrets.map(sec => sec.id)));
+    }
+    const validHazards = (hazards) => all(hazards, h => object(h) && id(h.id) && id(h.name) && integer(h.limit) && h.limit >= 3 && h.limit <= 20
+        && integer(h.marks) && h.marks <= h.limit && ['active', 'defeated'].includes(h.status)
+        && all(h.weaknesses, el => ELEMENTS.includes(el)) && all(h.resistances, el => ELEMENTS.includes(el))
+        && all(h.immunities, el => ELEMENTS.includes(el))
+        && all(h.aspects, a => object(a) && id(a.id) && id(a.name)
+            && all(a.boxes, box => ['clear', 'marked', 'burned'].includes(box)) && a.boxes.length >= 1 && a.boxes.length <= 20)
+        && unique(h.aspects.map(a => a.id)) && strings(h.quirks)
+        && (h.lastMayflyRoll === undefined || (object(h.lastMayflyRoll) && Array.isArray(h.lastMayflyRoll.draws)
+            && Array.isArray(h.lastMayflyRoll.survivors)
+            && (h.lastMayflyRoll.fallback === null || integer(h.lastMayflyRoll.fallback))
+            && integer(h.lastMayflyRoll.highest) && ['tentative', 'normal', 'devastating'].includes(h.lastMayflyRoll.tier)
+            && Array.isArray(h.lastMayflyRoll.marksRange) && h.lastMayflyRoll.marksRange.length === 2)))
+        && unique(hazards.map(h => h.id));
+    const validDungeonRuns = (runs) => all(runs, r => object(r) && id(r.id) && id(r.name) && id(r.grade) && id(r.objective) && id(r.law)
+        && all(r.progress, box => ['clear', 'marked', 'burned'].includes(box)) && r.progress.length >= 2 && r.progress.length <= 12
+        && (r.supply === null || (all(r.supply, box => ['clear', 'marked', 'burned'].includes(box)) && r.supply.length === 3))
+        && all(r.riftPressure, box => ['clear', 'marked', 'burned'].includes(box)) && r.riftPressure.length === 6
+        && ['active', 'arrived', 'broken'].includes(r.status)
+        && all(r.legs, leg => object(leg) && integer(leg.legNumber) && leg.legNumber >= 1
+            && ['careful', 'swift', 'camp'].includes(leg.pace)
+            && (leg.scoutDie === null || (integer(leg.scoutDie) && leg.scoutDie >= 1 && leg.scoutDie <= 6))
+            && (leg.scoutDomain === null || ['Peace', 'Order', 'Nature'].includes(leg.scoutDomain))
+            && Array.isArray(leg.threatDice)
+            && (leg.threatKept === null || (integer(leg.threatKept) && leg.threatKept >= 1 && leg.threatKept <= 6))
+            && (leg.threatTier === null || ['opportunity', 'hazard-payoff', 'danger', 'authored'].includes(leg.threatTier))
+            && text(leg.note)))
+        && unique(runs.map(r => r.id));
+    const validTournaments = (tournaments) => all(tournaments, t => object(t) && id(t.id) && id(t.name) && object(t.terms)
+        && id(t.terms.victoryCondition) && id(t.terms.arenaLimits) && id(t.terms.surrenderSignal) && id(t.terms.injuryStakes)
+        && [1, 2, 3].includes(t.round) && integer(t.interludeTasksRemaining)
+        && ['active', 'completed', 'eliminated'].includes(t.status)
+        && strings(t.entrants) && t.entrants.length === 8
+        && all(t.bouts, b => object(b) && id(b.id) && [1, 2, 3].includes(b.round)
+            && id(b.entrantA) && id(b.entrantB) && (b.winner === null || id(b.winner))
+            && (b.method === null || ['victory', 'yield', 'offscreen'].includes(b.method)) && text(b.note))
+        && unique(t.bouts.map(b => b.id)))
+        && unique(tournaments.map(t => t.id));
+    if (s.hazards !== undefined)
+        requireState(validHazards(s.hazards));
+    if (s.dungeonRuns !== undefined)
+        requireState(validDungeonRuns(s.dungeonRuns));
+    if (s.tournaments !== undefined)
+        requireState(validTournaments(s.tournaments));
+    if (s.encounters !== undefined) {
+        requireState(object(s.encounters) && validHazards(s.encounters.hazards)
+            && validDungeonRuns(s.encounters.dungeonRuns) && validTournaments(s.encounters.tournaments));
+    }
 }

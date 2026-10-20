@@ -140,7 +140,54 @@ export function correctEventMemory(state, correction, revision) {
         return memorySuccessor(job, basis, correction.operationId, revision);
     });
 }
-export function correctProfileMemory(state, command, operationId, revision) {
+export function correctProfileMemory(state, commandOrPersonId, operationId, revision) {
+    if (typeof commandOrPersonId === 'string') {
+        const personId = commandOrPersonId;
+        const nextProfile = state.profiles.find(profile => profile.personId === personId);
+        if (!nextProfile)
+            return [];
+        return currentMemoryPublications(state)
+            .filter(job => job.basis.profiles.some(profile => profile.personId === personId) ||
+            job.document.profileRevisions.some(pin => pin.personId === personId))
+            .flatMap(job => {
+            const view = projectProfileFacts(state, personId, job.document.audience);
+            const visible = new Set(projectProfileFacts(state, personId, 'player').entries.map(entry => entry.id));
+            const nextEntries = view.entries
+                .filter(entry => visible.has(entry.id))
+                .map(({ id, section, text, status, sources }) => ({
+                id,
+                section,
+                text,
+                status,
+                sources: structuredClone(sources),
+            }));
+            const existingProfile = job.basis.profiles.find(profile => profile.personId === personId);
+            const existingEntries = existingProfile?.entries ?? [];
+            if (sameValue(existingEntries, nextEntries))
+                return [];
+            const basis = structuredClone(job.basis);
+            const targetProfile = basis.profiles.find(profile => profile.personId === personId);
+            if (nextEntries.length === 0) {
+                basis.profiles = basis.profiles.filter(profile => profile.personId !== personId);
+            }
+            else if (targetProfile) {
+                targetProfile.entries = nextEntries;
+            }
+            else {
+                basis.profiles.push({ personId: view.personId, name: view.name, entries: nextEntries });
+            }
+            const successor = memorySuccessor(job, basis, operationId, revision);
+            const pin = successor.document.profileRevisions.find(entry => entry.personId === personId);
+            if (pin) {
+                pin.revision = nextProfile.revision;
+            }
+            else {
+                successor.document.profileRevisions.push({ personId, revision: nextProfile.revision });
+            }
+            return [successor];
+        });
+    }
+    const command = commandOrPersonId;
     const changes = new Map(command.changes.map(change => [change.entryId, change]));
     return currentMemoryPublications(state).filter(job => job.basis.profiles.some(profile => profile.personId === command.personId
         && profile.entries.some(entry => changes.has(entry.id)))).map(job => {

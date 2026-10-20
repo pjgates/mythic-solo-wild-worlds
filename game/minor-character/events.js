@@ -7,6 +7,10 @@ import { editableSlots } from "./editable-fields.js";
 import { validateMinorState } from "./validate-state.js";
 import { manifestElement, sceneBoundary, switchClass } from "./play.js";
 import { sceneEventCorrectionEvent, applyProfileEvent, profileEvent } from "./profiles.js";
+import { applyActionBattery, applyHarmEvent, applySpendBankedTwist, applyStakesAdjudication, applySystemRescue, } from "./stakes.js";
+import { applyCardArrangement, applyConfirmCanonBeat, applyExposure, applyExposureCoverStory, applyGrandDiscovery, applyMarkDivergence, applyMysteryDiscovery, applyRecallTheDraft, applyWitnessAndLearn, } from "./origin-world.js";
+import { applyAwakening, applyAwakeningSceneEnd, applyBreakthroughMark, applyBurnRecovery, applyCreateBenefit, applyDisplayedRank, applyDriveAdvance, applyMilestoneBoundary, applyMilestoneSpend, applyProjectCreation, applyProjectEffect, applyRankTrial, applyResourceAcquireTrade, applyResourceRecovery, } from "./downtime-advancement.js";
+import { applyAddKeeperSecret, applyDungeonLeg, applyMarkHazard, applyMayflyRoll, applyRevealKeeperSecret, applyRiftPressure, applyStartDungeonRun, applyStartHazard, applyStartTournament, applyTournamentBout, applyTournamentInterlude, } from "./encounters-keeper.js";
 // JSON object property order is not meaningful; array order and absent fields are.
 export function sameValue(left, right) {
     if (left === right)
@@ -69,7 +73,7 @@ export function applyMinorEvent(state, event) {
 // The native reader owns this private replay state. Keep the same event admission and validation,
 // without copying all earlier records for every replay step.
 export function applyOwnedMinorEvent(state, event, replay) {
-    if (state.sceneReview && ['action-resolved', 'class-switched', 'scene-advanced'].includes(event.kind)) {
+    if (state.sceneReview && ['action-resolved', 'class-switched', 'scene-advanced', 'keeper-secret-revealed'].includes(event.kind)) {
         throw new Error('Finish the pending scene review first.');
     }
     const next = state;
@@ -82,6 +86,14 @@ export function applyOwnedMinorEvent(state, event, replay) {
         next.memoryPublications.push(...expected.memoryPublications);
         for (const { after } of expected.profiles)
             next.profiles[next.profiles.findIndex(profile => profile.personId === after.personId)] = after;
+        if (next.coreDevelopments?.awakeningActiveSceneId === event.boundary.before.id) {
+            const ended = applyAwakeningSceneEnd(next, JSON.stringify([event.context.operationId, 'mana-strain']));
+            next.characters = ended.characters;
+            next.classState = ended.classState;
+            next.coreDevelopments = ended.coreDevelopments;
+            if (ended.exposureLog !== undefined)
+                next.exposureLog = ended.exposureLog;
+        }
         next.world.scene = expected.boundary.after;
         for (const entry of next.classState)
             entry.switchesThisScene = 0;
@@ -222,9 +234,25 @@ export function applyOwnedMinorEvent(state, event, replay) {
         if (!sameValue(event, sceneBoundary(state, event.before.id, event.after.id, event.after.startAnchor))) {
             throw new Error('Recorded scene boundary disagrees with history.');
         }
+        if (next.coreDevelopments?.awakeningActiveSceneId === event.before.id) {
+            let opId = event.after.id;
+            try {
+                const parsed = JSON.parse(event.after.id);
+                if (Array.isArray(parsed) && typeof parsed[0] === 'string')
+                    opId = parsed[0];
+            }
+            catch { }
+            const ended = applyAwakeningSceneEnd(next, JSON.stringify([opId, 'mana-strain']));
+            next.characters = ended.characters;
+            next.classState = ended.classState;
+            next.coreDevelopments = ended.coreDevelopments;
+            if (ended.exposureLog !== undefined)
+                next.exposureLog = ended.exposureLog;
+        }
         next.world.scene = structuredClone(event.after);
         for (const entry of next.classState)
             entry.switchesThisScene = 0;
+        validateMinorState(next, replay);
         return next;
     }
     if (event.kind === 'element-manifested') {
@@ -243,6 +271,10 @@ export function applyOwnedMinorEvent(state, event, replay) {
             throw new Error('Recorded pending outcome disagrees with the action.');
         if (state.pending)
             throw new Error('Finish the pending manual adjudication first.');
+        if (event.command.originalActionCommand.action.battery !== undefined) {
+            applyActionBattery(next, event, JSON.stringify([event.command.originalActionCommand.operationId, 'mana-strain']));
+            validateMinorState(next, replay);
+        }
         next.pending = structuredClone(event.pending);
         return next;
     }
@@ -276,5 +308,85 @@ export function applyOwnedMinorEvent(state, event, replay) {
         validateMinorState(next, replay);
         return next;
     }
+    const finish = (updated) => {
+        updated.sceneRecords = next.sceneRecords;
+        updated.memoryPublications = next.memoryPublications;
+        validateMinorState(updated, replay);
+        return updated;
+    };
+    if (event.kind === 'harm-applied')
+        return finish(applyHarmEvent(next, event));
+    if (event.kind === 'stakes-adjudicated')
+        return finish(applyStakesAdjudication(next, event));
+    if (event.kind === 'banked-twist-spent')
+        return finish(applySpendBankedTwist(next, event));
+    if (event.kind === 'rescue-spent')
+        return finish(applySystemRescue(next, event));
+    if (event.kind === 'witness-and-learn-recorded')
+        return finish(applyWitnessAndLearn(next, event));
+    if (event.kind === 'cards-arranged')
+        return finish(applyCardArrangement(next, event));
+    if (event.kind === 'exposure-recorded')
+        return finish(applyExposure(next, event));
+    if (event.kind === 'exposure-cleared')
+        return finish(applyExposureCoverStory(next, event));
+    if (event.kind === 'recall-draft-resolved')
+        return finish(applyRecallTheDraft(next, event));
+    if (event.kind === 'canon-beat-confirmed')
+        return finish(applyConfirmCanonBeat(next, event));
+    if (event.kind === 'divergence-marked')
+        return finish(applyMarkDivergence(next, event));
+    if (event.kind === 'mystery-discovery-recorded')
+        return finish(applyMysteryDiscovery(next, event));
+    if (event.kind === 'grand-discovery-accepted')
+        return finish(applyGrandDiscovery(next, event));
+    if (event.kind === 'resource-recovered')
+        return finish(applyResourceRecovery(next, event));
+    if (event.kind === 'benefit-created')
+        return finish(applyCreateBenefit(next, event));
+    if (event.kind === 'resource-acquired-traded')
+        return finish(applyResourceAcquireTrade(next, event));
+    if (event.kind === 'burn-recovered')
+        return finish(applyBurnRecovery(next, event));
+    if (event.kind === 'drive-advanced')
+        return finish(applyDriveAdvance(next, event));
+    if (event.kind === 'milestone-boundary-reset')
+        return finish(applyMilestoneBoundary(next, event));
+    if (event.kind === 'project-started')
+        return finish(applyProjectCreation(next, event));
+    if (event.kind === 'milestones-spent')
+        return finish(applyMilestoneSpend(next, event));
+    if (event.kind === 'project-completed')
+        return finish(applyProjectEffect(next, event));
+    if (event.kind === 'awakening-activated')
+        return finish(applyAwakening(next, event));
+    if (event.kind === 'breakthrough-marked')
+        return finish(applyBreakthroughMark(next, event));
+    if (event.kind === 'rank-trial-resolved')
+        return finish(applyRankTrial(next, event));
+    if (event.kind === 'displayed-rank-updated')
+        return finish(applyDisplayedRank(next, event));
+    if (event.kind === 'keeper-secret-added')
+        return finish(applyAddKeeperSecret(next, event));
+    if (event.kind === 'keeper-secret-revealed')
+        return finish(applyRevealKeeperSecret(next, event));
+    if (event.kind === 'hazard-started')
+        return finish(applyStartHazard(next, event));
+    if (event.kind === 'hazard-marked')
+        return finish(applyMarkHazard(next, event));
+    if (event.kind === 'mayfly-rolled')
+        return finish(applyMayflyRoll(next, event));
+    if (event.kind === 'dungeon-run-started')
+        return finish(applyStartDungeonRun(next, event));
+    if (event.kind === 'dungeon-leg-resolved')
+        return finish(applyDungeonLeg(next, event));
+    if (event.kind === 'rift-pressure-marked')
+        return finish(applyRiftPressure(next, event));
+    if (event.kind === 'tournament-started')
+        return finish(applyStartTournament(next, event));
+    if (event.kind === 'tournament-bout-resolved')
+        return finish(applyTournamentBout(next, event));
+    if (event.kind === 'tournament-interlude-spent')
+        return finish(applyTournamentInterlude(next, event));
     throw new Error('Unsupported recorded event.');
 }

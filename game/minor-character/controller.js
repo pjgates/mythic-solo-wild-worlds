@@ -6,6 +6,8 @@ import { rollD6 } from "../../engine/dice.js";
 import { createMinorCampaign, minorCharacterGame } from "./module.js";
 import { prepareMinorAction } from "./rules.js";
 import { projectActionReceipt, projectPlayer } from "./views.js";
+import { exportCheckpoint } from "./checkpoints.js";
+import { projectKeeperSecrets, } from "./encounters-keeper.js";
 export class CampaignController {
     #engine;
     constructor(store, changed = () => { }, die = rollD6) {
@@ -32,6 +34,16 @@ export class CampaignController {
     get playerView() {
         const campaign = this.#engine.state.campaign;
         return campaign ? projectPlayer(campaign) : undefined;
+    }
+    get keeperView() {
+        const campaign = this.#engine.state.campaign;
+        return campaign ? projectKeeperSecrets(campaign.snapshot.state) : undefined;
+    }
+    exportCheckpoint(lineage = null) {
+        const campaign = this.#engine.state.campaign;
+        if (!campaign)
+            throw new Error('No open campaign to export.');
+        return exportCheckpoint(campaign, lineage);
     }
     // Trusted delivery projection only; never expose raw campaign, transcript or knowledge metadata.
     get publicationWork() {
@@ -207,5 +219,122 @@ export class CampaignController {
             ?? await this.#engine.submit({ ...context, body: { kind: 'manual-handled', target, note } });
         if (entry.event.kind !== 'manual-handled')
             throw new Error('This ID belongs to another operation kind.');
+    }
+    async #submitEvent(context, body, expectedKind) {
+        const entry = this.#recorded(context) ?? await this.#engine.submit({ ...context, body });
+        if (entry.event.kind !== expectedKind)
+            throw new Error('This ID belongs to another operation kind.');
+        return structuredClone(entry.event);
+    }
+    applyHarm(context, input) {
+        return this.#submitEvent(context, { kind: 'apply-harm', ...input }, 'harm-applied');
+    }
+    adjudicateStakes(context, input) {
+        return this.#submitEvent(context, { kind: 'adjudicate-stakes', ...input }, 'stakes-adjudicated');
+    }
+    spendBankedTwist(context, input) {
+        return this.#submitEvent(context, { kind: 'spend-banked-twist', ...input }, 'banked-twist-spent');
+    }
+    spendRescue(context, input) {
+        return this.#submitEvent(context, { kind: 'spend-rescue', ...input }, 'rescue-spent');
+    }
+    witnessAndLearn(context, input) {
+        return this.#submitEvent(context, { kind: 'witness-and-learn', ...input }, 'witness-and-learn-recorded');
+    }
+    arrangeCards(context, input) {
+        return this.#submitEvent(context, { kind: 'arrange-cards', ...input }, 'cards-arranged');
+    }
+    recordExposure(context, input) {
+        return this.#submitEvent(context, { kind: 'record-exposure', ...input }, 'exposure-recorded');
+    }
+    clearExposure(context, input) {
+        return this.#submitEvent(context, { kind: 'clear-exposure', ...input }, 'exposure-cleared');
+    }
+    recallTheDraft(context, input) {
+        return this.#submitEvent(context, { kind: 'recall-draft', ...input }, 'recall-draft-resolved');
+    }
+    confirmCanonBeat(context, input) {
+        return this.#submitEvent(context, { kind: 'confirm-canon-beat', ...input }, 'canon-beat-confirmed');
+    }
+    markDivergence(context, input) {
+        return this.#submitEvent(context, { kind: 'mark-divergence', ...input }, 'divergence-marked');
+    }
+    recordMysteryDiscovery(context, input) {
+        return this.#submitEvent(context, { kind: 'record-mystery-discovery', ...input }, 'mystery-discovery-recorded');
+    }
+    acceptGrandDiscovery(context, input) {
+        return this.#submitEvent(context, { kind: 'accept-grand-discovery', ...input }, 'grand-discovery-accepted');
+    }
+    recoverWithResource(context, input) {
+        return this.#submitEvent(context, { kind: 'recover-with-resource', ...input }, 'resource-recovered');
+    }
+    createBenefit(context, input) {
+        return this.#submitEvent(context, { kind: 'create-benefit', ...input }, 'benefit-created');
+    }
+    acquireOrTradeResource(context, input) {
+        return this.#submitEvent(context, { kind: 'acquire-trade-resource', ...input }, 'resource-acquired-traded');
+    }
+    completeBurnRecovery(context, input) {
+        return this.#submitEvent(context, { kind: 'complete-burn-recovery', ...input }, 'burn-recovered');
+    }
+    advanceDrive(context, input) {
+        return this.#submitEvent(context, { kind: 'advance-drive', ...input }, 'drive-advanced');
+    }
+    milestoneBoundary(context, input) {
+        return this.#submitEvent(context, { kind: 'milestone-boundary', ...input }, 'milestone-boundary-reset');
+    }
+    startProject(context, input) {
+        return this.#submitEvent(context, { kind: 'start-project', ...input }, 'project-started');
+    }
+    spendMilestones(context, input) {
+        return this.#submitEvent(context, { kind: 'spend-milestones', ...input }, 'milestones-spent');
+    }
+    completeProject(context, input) {
+        return this.#submitEvent(context, { kind: 'complete-project', ...input }, 'project-completed');
+    }
+    activateAwakening(context) {
+        return this.#submitEvent(context, { kind: 'activate-awakening' }, 'awakening-activated');
+    }
+    markBreakthrough(context, input) {
+        return this.#submitEvent(context, { kind: 'mark-breakthrough', ...input }, 'breakthrough-marked');
+    }
+    resolveRankTrial(context, input) {
+        return this.#submitEvent(context, { kind: 'resolve-rank-trial', ...input }, 'rank-trial-resolved');
+    }
+    updateDisplayedRank(context, input) {
+        return this.#submitEvent(context, { kind: 'update-displayed-rank', ...input }, 'displayed-rank-updated');
+    }
+    addKeeperSecret(context, input) {
+        return this.#submitEvent(context, { kind: 'add-keeper-secret', ...input }, 'keeper-secret-added');
+    }
+    revealKeeperSecret(context, input) {
+        return this.#submitEvent(context, { kind: 'reveal-keeper-secret', ...input }, 'keeper-secret-revealed');
+    }
+    startHazard(context, input) {
+        return this.#submitEvent(context, { kind: 'start-hazard', ...input }, 'hazard-started');
+    }
+    markHazard(context, input) {
+        return this.#submitEvent(context, { kind: 'mark-hazard', ...input }, 'hazard-marked');
+    }
+    rollMayfly(context, input) {
+        return this.#submitEvent(context, { kind: 'roll-mayfly', ...input }, 'mayfly-rolled');
+    }
+    startDungeonRun(context, input) {
+        return this.#submitEvent(context, { kind: 'start-dungeon-run', ...input }, 'dungeon-run-started');
+    }
+    resolveDungeonLeg(context, input) {
+        return this.#submitEvent(context, { kind: 'resolve-dungeon-leg', ...input }, 'dungeon-leg-resolved');
+    }
+    markRiftPressure(context, input) {
+        return this.#submitEvent(context, { kind: 'mark-rift-pressure', ...input }, 'rift-pressure-marked');
+    }
+    startTournament(context, input) {
+        return this.#submitEvent(context, { kind: 'start-tournament', ...input }, 'tournament-started');
+    }
+    resolveTournamentBout(context, input) {
+        return this.#submitEvent(context, { kind: 'resolve-tournament-bout', ...input }, 'tournament-bout-resolved');
+    }
+    spendTournamentInterlude(context, input) {
+        return this.#submitEvent(context, { kind: 'spend-tournament-interlude', ...input }, 'tournament-interlude-spent');
     }
 }

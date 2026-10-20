@@ -78,8 +78,149 @@ export function renderActions(root, controller, capture, ready) {
                 }
             };
             card.append(form);
+            const details = document.createElement('details');
+            details.className = 'mc-stakes-adjudication';
+            details.append(element('summary', 'Structured Stakes, Twist & System Rescue'));
+            const stakesForm = document.createElement('form');
+            stakesForm.append(element('h4', 'Structured Stakes & Twist Adjudication'));
+            const stakesNote = input(stakesForm, 'Stakes adjudication note', true);
+            const harmMarks = select(stakesForm, 'Harm marks', [
+                ['0', 'No Harm · 0 marks'], ['1', 'Low · 1 mark'], ['2', 'Normal · 2 marks'],
+                ['3', 'High · 3 marks'], ['4', 'Extreme · 4 marks'],
+            ]);
+            const harmTarget = select(stakesForm, 'Harm target', [
+                ['', 'Direct injury (no aspect absorption)'],
+                ...view.sheet.aspects.map(a => [a.id, `Absorb on ${a.name} (${a.type})`]),
+            ]);
+            const harmOverflow = select(stakesForm, 'Harm overflow choice', [
+                ['injury', 'Overflow becomes injury'],
+                ['burn', 'Burn 1 box to absorb overflow'],
+            ]);
+            const injuryName = input(stakesForm, 'Injury name (if injury created)');
+            const twistChoice = select(stakesForm, 'Twist adjudication', [
+                ['', 'None'], ['note', 'Immediate narrative note'], ['bank', 'Bank Twist for this scene'],
+                ['critical', 'Critical upgrade (+1 impact)'], ['counter', 'Immediate counter-impact'],
+                ['mystery-discovery', 'Small Mystery discovery'],
+            ]);
+            const twistNote = input(stakesForm, 'Twist description or note');
+            const twistMystery = select(stakesForm, 'Mystery for Twist discovery', view.campaignDetails.mysteries.map(m => [m.id, m.question]));
+            const adjudicateBtn = button('Adjudicate stakes');
+            adjudicateBtn.disabled = !ready();
+            stakesForm.append(adjudicateBtn);
+            stakesForm.onsubmit = event => event.preventDefault();
+            adjudicateBtn.onclick = async () => {
+                if (!stakesForm.reportValidity())
+                    return;
+                adjudicateBtn.disabled = true;
+                const marks = Number(harmMarks.value);
+                const harm = marks > 0 ? {
+                    kind: 'apply-harm',
+                    marks,
+                    targetAspectId: harmTarget.value || null,
+                    overflowChoice: harmOverflow.value,
+                    injuryId: `injury-${entry.operationId}`,
+                    injuryName: injuryName.value.trim() || 'Stakes injury',
+                    injuryEffect: stakesNote.value.trim(),
+                } : undefined;
+                const text = twistNote.value.trim() || stakesNote.value.trim();
+                let twist;
+                if (twistChoice.value === 'note')
+                    twist = { kind: 'note', text };
+                else if (twistChoice.value === 'bank') {
+                    twist = { kind: 'bank', twistId: `twist-${entry.operationId}`, description: text };
+                }
+                else if (twistChoice.value === 'critical') {
+                    twist = { kind: 'critical', elevatedImpact: 'High' };
+                }
+                else if (twistChoice.value === 'counter') {
+                    twist = { kind: 'counter', targetName: text, marks: 1 };
+                }
+                else if (twistChoice.value === 'mystery-discovery') {
+                    twist = {
+                        kind: 'mystery-discovery',
+                        mysteryId: twistMystery.value,
+                        discoveryId: `disc-${entry.operationId}`,
+                        name: text,
+                    };
+                }
+                try {
+                    await controller.adjudicateStakes(await capture(view.context), {
+                        targetOperationId: entry.operationId,
+                        note: stakesNote.value.trim(),
+                        ...(harm ? { harm } : {}),
+                        ...(twist ? { twist } : {}),
+                    });
+                }
+                catch (error) {
+                    status.textContent = String(error);
+                    adjudicateBtn.disabled = !ready();
+                }
+            };
+            details.append(stakesForm);
+            if (view.sheet.rescues.remaining > 0) {
+                const rescueForm = document.createElement('form');
+                rescueForm.append(element('h4', `System Rescue (${view.sheet.rescues.remaining} remaining)`));
+                const catastrophe = input(rescueForm, 'Catastrophe averted', true);
+                const price = input(rescueForm, 'Story price', true);
+                const markExposure = checkbox(rescueForm, 'Mark Exposure from rescue');
+                const rescueBtn = button('Spend System Rescue');
+                rescueBtn.disabled = !ready();
+                rescueForm.append(rescueBtn);
+                rescueForm.onsubmit = event => event.preventDefault();
+                rescueBtn.onclick = async () => {
+                    if (!rescueForm.reportValidity())
+                        return;
+                    rescueBtn.disabled = true;
+                    try {
+                        await controller.spendRescue(await capture(view.context), {
+                            targetOperationId: entry.operationId,
+                            catastropheAverted: catastrophe.value.trim(),
+                            storyPrice: price.value.trim(),
+                            markExposure: markExposure.checked,
+                        });
+                    }
+                    catch (error) {
+                        status.textContent = String(error);
+                        rescueBtn.disabled = !ready();
+                    }
+                };
+                details.append(rescueForm);
+            }
+            card.append(details);
         }
         root.append(card);
+    }
+    const activeTwists = view.bankedTwists.filter(twist => !twist.spent && twist.sceneId === view.play.scene.id);
+    if (activeTwists.length > 0) {
+        const twistBox = document.createElement('div');
+        twistBox.className = 'mc-banked-twists';
+        twistBox.append(element('h4', 'Banked Twists (current scene)'));
+        for (const twist of activeTwists) {
+            const twistForm = document.createElement('form');
+            twistForm.append(element('p', `Banked Twist: ${twist.description}`));
+            const effectInput = input(twistForm, 'How is the banked Twist spent?', true);
+            const spendBtn = button('Spend banked Twist');
+            spendBtn.disabled = !ready();
+            twistForm.append(spendBtn);
+            twistForm.onsubmit = event => event.preventDefault();
+            spendBtn.onclick = async () => {
+                if (!twistForm.reportValidity())
+                    return;
+                spendBtn.disabled = true;
+                try {
+                    await controller.spendBankedTwist(await capture(view.context), {
+                        twistId: twist.id,
+                        note: effectInput.value.trim(),
+                    });
+                }
+                catch (error) {
+                    status.textContent = String(error);
+                    spendBtn.disabled = !ready();
+                }
+            };
+            twistBox.append(twistForm);
+        }
+        root.append(twistBox);
     }
     if (view.pendingManual)
         return;
@@ -108,6 +249,11 @@ export function renderActions(root, controller, capture, ready) {
     const precision = checkbox(form, 'Voluntary Precision · Cut 1 to target a part or deny an ability');
     const impactCut = checkbox(form, 'Voluntary Impact · Cut 1 to raise impact one step');
     const baseImpact = select(form, 'Base impact', [['Normal', 'Normal · one box'], ['Low', 'Low · one fewer'], ['High', 'High · one extra'], ['Massive', 'Massive · whole track, siege-scale permission']]);
+    const battery = select(form, 'Origin Core Battery', [
+        ['', 'None'],
+        ['massive', 'Massive impact · 2 Core Fatigue'],
+        ['bypass-rank-gap', 'Bypass rank gap · 2 Core Fatigue'],
+    ]);
     form.append(element('p', 'Three or more Cuts, including automatic Mana Strain, require a feasible objective and a manual permission ruling. Overflow does not bypass permissions or restore reduced impact. Massive requires siege-scale permission. Unearned projects (including Marginalia) grant no Advantage.'));
     const permission = input(form, 'Permission ruling (required for 3+ Cuts or Massive)');
     const roll = button('Roll and save');
@@ -124,7 +270,8 @@ export function renderActions(root, controller, capture, ready) {
             cuts: { difficulty: Number(difficulty.value), rankGap: Number(rankGap.value),
                 mires: mires.filter(mire => mire.control.checked).map(mire => mire.id),
                 precision: precision.checked, impact: impactCut.checked },
-            baseImpact: baseImpact.value, permission: permission.value.trim() };
+            baseImpact: baseImpact.value, permission: permission.value.trim(),
+            ...(battery.value ? { battery: battery.value } : {}) };
         try {
             await controller.submitAction({ ...await capture(view.context), action });
         }

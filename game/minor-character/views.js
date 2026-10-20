@@ -42,6 +42,100 @@ export function projectPlayer(campaign) {
         pendingManual: state.pending?.operationId ?? null, sceneReview: projectSceneReview(state),
         memoryPublications: projectMemoryPublicationStatus(state),
         rules: { gameId: campaign.rules.gameId, revision: campaign.rules.revision }, opening: state.world.opening,
+        bankedTwists: (state.bankedTwists ?? []).map(twist => ({
+            id: twist.id,
+            sceneId: twist.sceneId,
+            operationId: twist.operationId,
+            description: twist.description,
+            spent: twist.spent,
+            ...(twist.spentNote === undefined ? {} : { spentNote: twist.spentNote }),
+        })),
+        exposureLog: (state.exposureLog ?? []).map(inc => ({
+            id: inc.id,
+            witness: inc.witness,
+            description: inc.description,
+            absorbedByCub: inc.absorbedByCub,
+            threshold: inc.threshold,
+            learnedFact: inc.learnedFact,
+        })),
+        milestoneAllowance: {
+            minorThisSession: state.milestoneAllowance?.minorThisSession ?? 0,
+            majorThisArc: state.milestoneAllowance?.majorThisArc ?? 0,
+        },
+        coreDevelopments: {
+            confluence: state.coreDevelopments?.confluence ?? false,
+            awakening: state.coreDevelopments?.awakening ?? false,
+            awakeningUsedThisArc: state.coreDevelopments?.awakeningUsedThisArc ?? false,
+            awakeningActiveSceneId: state.coreDevelopments?.awakeningActiveSceneId ?? null,
+        },
+        encounters: {
+            hazards: (state.encounters?.hazards ?? state.hazards ?? []).map(h => ({
+                id: h.id,
+                name: h.name,
+                limit: h.limit,
+                marks: h.marks,
+                status: h.status,
+                weaknesses: [...h.weaknesses],
+                resistances: [...h.resistances],
+                immunities: [...h.immunities],
+                aspects: h.aspects.map(a => ({ id: a.id, name: a.name, boxes: [...a.boxes] })),
+                quirks: [...h.quirks],
+                ...(h.lastMayflyRoll === undefined ? {} : {
+                    lastMayflyRoll: {
+                        draws: [...h.lastMayflyRoll.draws],
+                        survivors: [...h.lastMayflyRoll.survivors],
+                        fallback: h.lastMayflyRoll.fallback,
+                        highest: h.lastMayflyRoll.highest,
+                        tier: h.lastMayflyRoll.tier,
+                        marksRange: [h.lastMayflyRoll.marksRange[0], h.lastMayflyRoll.marksRange[1]],
+                    },
+                }),
+            })),
+            dungeonRuns: (state.encounters?.dungeonRuns ?? state.dungeonRuns ?? []).map(r => ({
+                id: r.id,
+                name: r.name,
+                grade: r.grade,
+                objective: r.objective,
+                law: r.law,
+                progress: [...r.progress],
+                supply: r.supply === null ? null : [...r.supply],
+                riftPressure: [...r.riftPressure],
+                status: r.status,
+                legs: r.legs.map(leg => ({
+                    legNumber: leg.legNumber,
+                    pace: leg.pace,
+                    scoutDie: leg.scoutDie,
+                    scoutDomain: leg.scoutDomain,
+                    threatDice: [...leg.threatDice],
+                    threatKept: leg.threatKept,
+                    threatTier: leg.threatTier,
+                    note: leg.note,
+                })),
+            })),
+            tournaments: (state.encounters?.tournaments ?? state.tournaments ?? []).map(t => ({
+                id: t.id,
+                name: t.name,
+                terms: {
+                    victoryCondition: t.terms.victoryCondition,
+                    arenaLimits: t.terms.arenaLimits,
+                    surrenderSignal: t.terms.surrenderSignal,
+                    injuryStakes: t.terms.injuryStakes,
+                },
+                round: t.round,
+                interludeTasksRemaining: t.interludeTasksRemaining,
+                status: t.status,
+                entrants: [...t.entrants],
+                bouts: t.bouts.map(b => ({
+                    id: b.id,
+                    round: b.round,
+                    entrantA: b.entrantA,
+                    entrantB: b.entrantB,
+                    winner: b.winner,
+                    method: b.method,
+                    note: b.note,
+                })),
+            })),
+        },
     };
 }
 // One status per accepted scene discloses no target identities, counts, private prose or source metadata.
@@ -141,6 +235,7 @@ export function projectActionReceipt(entry) {
                 advantageSources: [...a.advantageSources],
                 ...(a.permission === undefined ? {} : { permission: a.permission }),
                 ...(a.baseImpact === undefined ? {} : { baseImpact: a.baseImpact }),
+                ...(a.battery === undefined ? {} : { battery: a.battery }),
                 ...(a.cuts === undefined ? {} : { cuts: {
                         ...(a.cuts.difficulty === undefined ? {} : { difficulty: a.cuts.difficulty }),
                         ...(a.cuts.rankGap === undefined ? {} : { rankGap: a.cuts.rankGap }),
@@ -163,12 +258,25 @@ export function projectActionReceipt(entry) {
     };
 }
 function projectHistory(campaign) {
-    return campaign.journal.map(entry => {
-        const item = { operationId: entry.operationId, at: entry.at, summary: entry.summary };
+    const secrets = campaign.snapshot.state.keeperSecrets ?? [];
+    return campaign.journal.flatMap(entry => {
+        const event = entry.event;
+        if (event.kind === 'keeper-secret-added')
+            return [];
+        if (event.kind === 'keeper-secret-revealed') {
+            const secret = secrets.find(s => s.id === event.command.secretId);
+            if (!event.command.publishToProfile && (!secret || secret.status === 'hidden')) {
+                return [];
+            }
+        }
+        const item = {
+            operationId: entry.operationId,
+            at: entry.at,
+            summary: event.kind === 'keeper-secret-revealed' ? 'Keeper secret revealed.' : entry.summary,
+        };
         const receipt = projectActionReceipt(entry);
         if (receipt)
             item.receipt = receipt;
-        const event = entry.event;
         if (event.kind === 'field-corrected')
             item.correction = {
                 label: event.label, before: event.before, after: event.after, reason: event.command.reason,
@@ -184,6 +292,6 @@ function projectHistory(campaign) {
             item.manualNote = event.command.note;
             item.manualTarget = event.command.target;
         }
-        return item;
+        return [item];
     });
 }

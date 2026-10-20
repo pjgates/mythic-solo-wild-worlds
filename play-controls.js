@@ -1,4 +1,5 @@
 import { ELEMENTS } from "./game/minor-character/state.js";
+import { renderMilestoneControls } from "./milestone-controls.js";
 const text = (tag, value) => {
     const node = document.createElement(tag);
     node.textContent = value;
@@ -11,7 +12,7 @@ const button = (label) => {
     node.textContent = label;
     return node;
 };
-export function renderPlayControls(root, controller, capture, ready) {
+export function renderPlayControls(root, controller, capture, ready, checkpointTools) {
     const view = controller.playerView;
     if (!view)
         return;
@@ -78,6 +79,7 @@ export function renderPlayControls(root, controller, capture, ready) {
     section.append(text('h4', `Scene ${view.play.scene.number}`), text('p', `${view.play.switchesThisScene} class switches this scene. Next switch: ${cost} Fatigue.`));
     if (view.pendingManual)
         section.append(text('p', 'Finish the pending manual adjudication before switching class or ending the scene.'));
+    renderMilestoneControls(section, controller, capture, ready, checkpointTools);
     section.append(confirmation, status);
     root.prepend(section);
 }

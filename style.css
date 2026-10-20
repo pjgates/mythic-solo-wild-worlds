@@ -115,12 +115,23 @@
   #minor-character-sheet { width: 100%; border-radius: 0; }
   #minor-character-sheet .mc-content { padding: 0 14px 24px; }
 }
-#minor-character-actions { margin: 16px; padding: 16px; border: 1px solid var(--mc-border); border-radius: 12px; overflow-wrap: anywhere; }
+#minor-character-actions { margin: 16px; padding: 16px; border: 1px solid var(--mc-border); border-radius: 12px; overflow-wrap: anywhere; min-width: 0; box-sizing: border-box; }
 #minor-character-actions article { padding: 10px 0; border-bottom: 1px solid var(--mc-border); }
-#minor-character-actions form { display: grid; gap: 12px; }
-#minor-character-actions label { display: grid; gap: 6px; }
-#minor-character-actions input, #minor-character-actions select, #minor-character-actions button { min-height: 44px; width: 100%; box-sizing: border-box; }
+#minor-character-actions form { display: grid; gap: 12px; min-width: 0; }
+#minor-character-actions label { display: grid; gap: 6px; min-width: 0; }
+#minor-character-actions fieldset { min-width: 0; max-width: 100%; box-sizing: border-box; }
+#minor-character-actions input, #minor-character-actions select, #minor-character-actions button { min-height: 44px; width: 100%; max-width: 100%; box-sizing: border-box; }
 #minor-character-actions summary { cursor: pointer; min-height: 44px; padding-top: 10px; }
+
+#minor-character-sheet .mc-play-controls { min-width: 0; }
+#minor-character-sheet .mc-play-controls details { margin: 8px 0; border-top: 1px solid var(--mc-border); padding-top: 4px; min-width: 0; }
+#minor-character-sheet .mc-play-controls summary { cursor: pointer; min-height: 44px; padding: 10px 0; box-sizing: border-box; font-weight: 600; }
+#minor-character-sheet .mc-play-controls form, #minor-character-sheet .mc-play-controls label:not(.mc-checkbox) { display: grid; gap: 8px; min-width: 0; }
+#minor-character-sheet .mc-play-controls form { gap: 12px; margin: 12px 0; padding: 10px; border: 1px solid var(--mc-border); border-radius: 6px; background: var(--mc-raised); }
+#minor-character-sheet .mc-play-controls :is(input:not([type="checkbox"]), select, textarea, button) { min-height: 44px; width: 100%; max-width: 100%; box-sizing: border-box; }
+#minor-character-sheet .mc-play-controls .mc-actions button { width: auto; }
+#minor-character-sheet .mc-play-controls .mc-checkbox { display: flex; align-items: center; min-height: 44px; gap: 12px; }
+#minor-character-sheet .mc-play-controls .mc-checkbox input { width: 22px; height: 22px; min-width: 22px; min-height: 22px; flex: 0 0 22px; accent-color: var(--mc-accent); }
 
 #minor-character-sheet .mc-corrections form, #minor-character-sheet .mc-corrections label { display: grid; gap: 8px; }
 #minor-character-sheet .mc-corrections form { gap: 12px; }

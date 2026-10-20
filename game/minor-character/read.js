@@ -7,16 +7,70 @@ function requireHistory(valid) {
     if (!valid)
         throw new Error('Unsupported or contradictory saved history; original data retained.');
 }
+const VALID_EVENT_KINDS = new Set([
+    'memory-conflict-reviewed',
+    'scene-event-corrected',
+    'memory-outcome-recorded',
+    'created',
+    'memory-bound',
+    'memory-destination-resolved',
+    'field-corrected',
+    'scene-review-accepted',
+    'scene-review-revised',
+    'profile-updated',
+    'scene-review-saved',
+    'scene-review-cancelled',
+    'class-switched',
+    'scene-advanced',
+    'element-manifested',
+    'fields-corrected',
+    'action-resolved',
+    'manual-handled',
+    'harm-applied',
+    'stakes-adjudicated',
+    'banked-twist-spent',
+    'rescue-spent',
+    'witness-and-learn-recorded',
+    'cards-arranged',
+    'exposure-recorded',
+    'exposure-cleared',
+    'recall-draft-resolved',
+    'canon-beat-confirmed',
+    'divergence-marked',
+    'mystery-discovery-recorded',
+    'grand-discovery-accepted',
+    'resource-recovered',
+    'benefit-created',
+    'resource-acquired-traded',
+    'burn-recovered',
+    'drive-advanced',
+    'milestone-boundary-reset',
+    'project-started',
+    'milestones-spent',
+    'project-completed',
+    'awakening-activated',
+    'breakthrough-marked',
+    'rank-trial-resolved',
+    'displayed-rank-updated',
+    'keeper-secret-added',
+    'keeper-secret-revealed',
+    'hazard-started',
+    'hazard-marked',
+    'mayfly-rolled',
+    'dungeon-run-started',
+    'dungeon-leg-resolved',
+    'rift-pressure-marked',
+    'tournament-started',
+    'tournament-bout-resolved',
+    'tournament-interlude-spent',
+]);
 export function readMinorCampaign(value, binding) {
     const c = structuredClone(value);
     requireHistory(!!c && c.schemaVersion === 2 && c.binding === binding && sameValue(c.rules, MINOR_RULES)
         && id(c.id) && id(c.branchId) && Number.isSafeInteger(c.revision) && c.revision >= 0
         && !!c.snapshot && c.snapshot.revision === c.revision && Array.isArray(c.journal)
         && c.journal.length === c.revision + 1 && Array.from(c.journal).every(entry => !!entry
-        && (entry.event?.kind === 'memory-conflict-reviewed' || entry.event?.kind === 'scene-event-corrected' || entry.event?.kind === 'memory-outcome-recorded' || entry.event?.kind === 'created' || entry.event?.kind === 'memory-bound' || entry.event?.kind === 'memory-destination-resolved' || entry.event?.kind === 'field-corrected'
-            || entry.event?.kind === 'scene-review-accepted' || entry.event?.kind === 'scene-review-revised' || entry.event?.kind === 'profile-updated' || entry.event?.kind === 'scene-review-saved' || entry.event?.kind === 'scene-review-cancelled'
-            || entry.event?.kind === 'class-switched' || entry.event?.kind === 'scene-advanced' || entry.event?.kind === 'element-manifested' || entry.event?.kind === 'fields-corrected'
-            || entry.event?.kind === 'action-resolved' || entry.event?.kind === 'manual-handled')));
+        && VALID_EVENT_KINDS.has(entry.event?.kind)));
     validateMinorState(c.initialState);
     validateMinorState(c.snapshot.state);
     requireHistory(c.initialState.pending === null && c.initialState.sceneReview === null && c.initialState.sceneRecords.length === 0 && c.initialState.sceneEventCorrections.length === 0
@@ -66,6 +120,9 @@ export function readMinorCampaign(value, binding) {
             requireHistory(entry.event.correction?.operationId === context.operationId
                 && entry.event.revision === entry.revision);
         if (entry.event.kind === 'profile-updated')
+            requireHistory(entry.event.operationId === context.operationId
+                && entry.event.revision === entry.revision);
+        if (entry.event.kind === 'keeper-secret-revealed')
             requireHistory(entry.event.operationId === context.operationId
                 && entry.event.revision === entry.revision);
         if (entry.event.kind === 'action-resolved') {

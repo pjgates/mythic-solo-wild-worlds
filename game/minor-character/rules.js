@@ -38,10 +38,23 @@ export function resolveMinorAction(state, body, die) {
         action.skill.name = character.skills.find(entry => entry.id === command.refs.skillId).name;
     if (action.cuts)
         action.cuts.mires = command.refs.mireIds;
+    const awakeningActive = state.coreDevelopments?.awakeningActiveSceneId === state.world.scene.id;
+    if (awakeningActive) {
+        action.baseImpact = 'Massive';
+        if (!action.permission?.trim()) {
+            action.permission = 'Origin Awakening active';
+        }
+    }
     const result = resolveAction(projectSheet(state), action, die, manaStrainCut(state, action.skill));
+    let costs = [];
+    if (action.battery !== undefined) {
+        const core = character.aspects.find(entry => entry.id === 'core');
+        const paidBoxes = core.track.boxes.flatMap((box, index) => box === 'clear' ? [index] : []).slice(0, 2);
+        costs = [`core-battery:${paidBoxes[0]},${paidBoxes[1]}`];
+    }
     const pending = result.outcome !== 'Triumph' || result.twist
         ? { kind: 'manual-action', operationId: command.originalActionCommand.operationId } : null;
-    return { kind: 'action-resolved', command, result, costs: [], effects: [], pending };
+    return { kind: 'action-resolved', command, result, costs, effects: [], pending };
 }
 // Validate this rules revision against the state before the event; never resolve or replace its roll.
 export function assertRecordedAction(state, event) {
@@ -53,7 +66,19 @@ export function assertRecordedAction(state, event) {
     const integer = (value) => Number.isInteger(value) && value >= 0;
     const text = (value) => typeof value === 'string' && !!value.trim();
     const impacts = ['Low', 'Normal', 'High', 'Massive'];
-    if (!text(operationId) || !text(action.description)
+    const validBattery = action.battery === undefined || action.battery === 'massive' || action.battery === 'bypass-rank-gap';
+    const expectedRankGap = action.battery === 'bypass-rank-gap' ? 0 : (declared.rankGap ?? 0);
+    const awakeningActive = state.coreDevelopments?.awakeningActiveSceneId === state.world.scene.id;
+    const effectiveBase = (action.battery === 'massive' || awakeningActive) ? 'Massive' : (action.baseImpact ?? 'Normal');
+    const effectivePermission = action.permission?.trim() || (awakeningActive ? 'Origin Awakening active' : '');
+    const character = state.characters.find(entry => entry.id === state.playerCharacterId);
+    const core = character.aspects.find(entry => entry.id === 'core');
+    const clearCore = core ? core.track.boxes.flatMap((box, index) => box === 'clear' ? [index] : []) : [];
+    const validCosts = action.battery === undefined
+        ? Array.isArray(event.costs) && event.costs.length === 0
+        : clearCore.length >= 2 && Array.isArray(event.costs) && event.costs.length === 1
+            && event.costs[0] === `core-battery:${clearCore[0]},${clearCore[1]}`;
+    if (!validBattery || !text(operationId) || !text(action.description)
         || (action.skill !== null && (!['skill', 'lore'].includes(action.skill.kind) || !text(action.skill.name)))
         || !Array.isArray(action.advantageSources) || action.advantageSources.length > 2
         || !Array.from(action.advantageSources).every(text) || new Set(action.advantageSources).size !== action.advantageSources.length
@@ -68,7 +93,7 @@ export function assertRecordedAction(state, event) {
         || ![cuts.difficulty, cuts.rankGap, cuts.mire, cuts.injury, cuts.precision, cuts.impact, cuts.total,
             origin.classBonus, origin.uncappedPool, origin.overflow, origin.mandatoryCuts,
             origin.remainingMandatoryCuts, origin.voluntaryCuts].every(integer)
-        || cuts.difficulty !== (declared.difficulty ?? 0) || cuts.rankGap !== (declared.rankGap ?? 0)
+        || cuts.difficulty !== (declared.difficulty ?? 0) || cuts.rankGap !== expectedRankGap
         || cuts.precision !== Number(declared.precision ?? false) || cuts.impact !== Number(declared.impact ?? false)
         || origin.uncappedPool < origin.classBonus || origin.uncappedPool - origin.classBonus > 6
         || result.pool !== Math.min(6, origin.uncappedPool) || origin.overflow !== Math.max(0, origin.uncappedPool - 6)
@@ -76,11 +101,11 @@ export function assertRecordedAction(state, event) {
         || origin.remainingMandatoryCuts !== Math.max(0, origin.mandatoryCuts - origin.overflow)
         || origin.voluntaryCuts !== cuts.precision + cuts.impact || cuts.total !== origin.remainingMandatoryCuts + origin.voluntaryCuts
         || (action.baseImpact !== undefined && !impacts.includes(action.baseImpact))
-        || result.impact !== impacts[Math.max(0, Math.min(3, impacts.indexOf(action.baseImpact ?? 'Normal')
+        || result.impact !== impacts[Math.max(0, Math.min(3, impacts.indexOf(effectiveBase)
             + cuts.impact - Number(cuts.rankGap === 2)))]
-        || ((origin.mandatoryCuts + origin.voluntaryCuts >= 3 || action.baseImpact === 'Massive' || result.impact === 'Massive')
-            && !action.permission?.trim())
-        || !Array.isArray(event.costs) || event.costs.length !== 0 || !Array.isArray(event.effects) || event.effects.length !== 0) {
+        || ((origin.mandatoryCuts + origin.voluntaryCuts >= 3 || effectiveBase === 'Massive' || result.impact === 'Massive')
+            && !effectivePermission)
+        || !validCosts || !Array.isArray(event.effects) || event.effects.length !== 0) {
         throw new Error('Invalid recorded action.');
     }
     const sheet = projectSheet(state);

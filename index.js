@@ -23,6 +23,7 @@ import { createSceneControls } from "./scene-controls.js";
 import { MythicBridge, MYTHIC_READY_EVENT } from "./mythic-bridge.js";
 import { renderMythicPanel } from "./mythic-view.js";
 import { AgentAdmission } from "./agent-admission.js";
+import { GitHubCheckpointSync } from "./github-sync.js";
 let admitGeneration = async () => false;
 window.minorCharacterActionGuard = async (_chat, _size, abort) => {
     try {
@@ -70,12 +71,14 @@ try {
     let request = 0;
     let writerActive = false;
     const handles = new Map();
-    const controller = new CampaignController(hostStore(api.extension.store, binding => {
+    const resolveMetadata = (binding) => {
         const target = handles.get(binding);
         if (!target)
             throw new Error('Campaign chat handle is unavailable.');
         return target;
-    }), render);
+    };
+    const controller = new CampaignController(hostStore(api.extension.store, resolveMetadata), render);
+    const githubSync = new GitHubCheckpointSync(fetch, render);
     // Mythic GME loads after this extension (loading order 110 vs 100), so the API is looked up until it appears.
     const mythic = new MythicBridge({ resolve: () => window.MythicGME, binding: campaignBinding, changed: render });
     window.addEventListener(MYTHIC_READY_EVENT, () => { if (mythic.attach())
@@ -330,7 +333,12 @@ try {
                 const controls = document.createElement('div');
                 play.append(summary, controls);
                 content.querySelector('.mc-identity').append(play);
-                renderPlayControls(controls, controller, capturePlay, playReady);
+                renderPlayControls(controls, controller, capturePlay, playReady, {
+                    store: api.extension.store,
+                    metadata: resolveMetadata,
+                    github: githubSync,
+                    onRestored: () => refresh(true),
+                });
                 renderMythicPanel(controls, view, mythic, playReady);
                 corrections.render(content);
                 renderSceneReview(content, view, sceneReview, mythic);
