@@ -12,11 +12,13 @@ export function renderFieldEditor(root, field, value, changed) {
     if (field.ref.owner === 'track') {
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'mc-track-editor';
         const choices = field.choices;
+        const original = String(field.value);
+        // A 44px tap target around a drawn box: clear, marked (/) or burned (×); a changed box carries a gold ring.
         function show() {
             const next = choices[(choices.indexOf(String(value)) + 1) % choices.length];
-            button.textContent = `${field.ref.box + 1}: ${value}`;
+            button.className = `mc-track-editor mc-${value}${String(value) === original ? '' : ' mc-changed'}`;
+            button.textContent = value === 'marked' ? '/' : value === 'burned' ? '×' : '';
             button.setAttribute('aria-label', `${field.label}: ${value}. Change to ${next}`);
         }
         button.onclick = () => {
@@ -56,7 +58,30 @@ export function renderFieldEditor(root, field, value, changed) {
         : typeof field.value === 'boolean' ? input.value === 'true' : input.value;
     input.oninput = () => { if (input.checkValidity())
         changed(readValue()); };
-    label.append(input);
+    if (input instanceof HTMLInputElement && input.type === 'number') {
+        // Ranks and counts change one step at a time; the number field stays for typing and validation.
+        const stepper = document.createElement('span');
+        stepper.className = 'mc-stepper';
+        const step = (delta, text, name) => {
+            const control = document.createElement('button');
+            control.type = 'button';
+            control.className = 'menu_button mc-step';
+            control.textContent = text;
+            control.setAttribute('aria-label', `${name} ${field.label}`);
+            control.onclick = () => {
+                const field = input;
+                const min = field.min === '' ? -Infinity : Number(field.min), max = field.max === '' ? Infinity : Number(field.max);
+                const next = Math.min(max, Math.max(min, Number(field.value || 0) + delta));
+                field.value = String(next);
+                field.oninput?.call(field, new Event('input'));
+            };
+            return control;
+        };
+        stepper.append(step(-1, '−', 'Lower'), input, step(1, '+', 'Raise'));
+        label.append(stepper);
+    }
+    else
+        label.append(input);
     group.append(label);
     if (['truth', 'spentOn', 'card'].includes(field.ref.field)) {
         const absentLabel = document.createElement('label');

@@ -1,25 +1,41 @@
 import { renderHistory } from "./history-view.js";
+/** The sheet's own sections, as short tabs that fit a phone. */
 const tabs = [
-    ['capabilities', 'Edges & skills'], ['aspects', 'Aspects'], ['life', 'Drives & more'],
-    ['background-history', 'Background & history'],
+    ['capabilities', 'Skills'], ['aspects', 'Aspects'], ['life', 'Drives'], ['background-history', 'Story'],
 ];
+const destinations = [['sheet', 'Sheet'], ['cast', 'Cast'], ['campaign', 'Campaign']];
+const titles = { sheet: 'Sera’s sheet', cast: 'Cast', campaign: 'Campaign', settings: 'Play settings' };
+const svg = (paths) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+export const ICONS = {
+    back: svg('<path d="M15 5l-7 7 7 7"/>'),
+    gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>'),
+    expand: svg('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'),
+    pencil: svg('<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>'),
+    chevron: svg('<path d="M9 5l7 7-7 7"/>'),
+    lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+};
 export function createSheetShell(launcher, changed = () => { }) {
     const panel = document.createElement('aside');
     panel.id = 'minor-character-sheet';
     panel.hidden = true;
     panel.setAttribute('aria-labelledby', 'mc-title');
-    panel.innerHTML = `<header><h2 id="mc-title">Minor Character</h2>
-    <div><button class="menu_button" type="button" data-fullscreen>Full screen</button>
-    <button class="menu_button" type="button" data-back>Back</button></div></header>
+    panel.innerHTML = `<header class="mc-panel-bar"><h2 id="mc-title" class="mc-visually-hidden">Sera’s sheet</h2>
+    <button class="menu_button mc-icon-button" type="button" data-back aria-label="Back to chat">${ICONS.back}</button>
+    <nav class="mc-destinations" aria-label="Sera’s panels"></nav>
+    <button class="menu_button mc-icon-button" type="button" data-settings aria-label="Play settings">${ICONS.gear}</button>
+    <button class="menu_button mc-icon-button" type="button" data-fullscreen aria-label="Full screen">${ICONS.expand}</button></header>
     <nav role="tablist" aria-label="Character sheet sections"></nav><div class="mc-content"></div>`;
     const content = panel.querySelector('.mc-content');
     const tablist = panel.querySelector('[role="tablist"]');
+    const nav = panel.querySelector('.mc-destinations');
     const back = panel.querySelector('[data-back]');
     const expand = panel.querySelector('[data-fullscreen]');
+    const settings = panel.querySelector('[data-settings]');
     const overlay = document.createElement('dialog');
     overlay.id = 'minor-character-fullscreen';
     overlay.setAttribute('aria-labelledby', 'mc-title');
     const desktop = matchMedia('(min-width: 1024px)');
+    // The Cast stays reachable from the panel's own switch; the composer keeps one launcher.
     const castLauncher = document.createElement('button');
     castLauncher.id = 'minor-character-cast-launch';
     castLauncher.className = 'menu_button';
@@ -36,7 +52,9 @@ export function createSheetShell(launcher, changed = () => { }) {
             || view.context.branchId !== historyView?.context.branchId)
             historyVisibleCount = 50;
         historyView = view;
-        renderHistory(content.querySelector('[data-mechanical-history]'), view, historyVisibleCount);
+        const target = content.querySelector('[data-mechanical-history]');
+        if (target)
+            renderHistory(target, view, historyVisibleCount);
     }
     content.addEventListener('click', event => {
         if (!event.target.closest('[data-load-older]') || !historyView)
@@ -48,6 +66,17 @@ export function createSheetShell(launcher, changed = () => { }) {
         restorePosition();
         content.querySelectorAll('[data-history-entry]')[previousCount].focus({ preventScroll: true });
     });
+    const destinationButtons = destinations.map(([id, label]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'menu_button';
+        button.textContent = label;
+        button.dataset.destination = id;
+        button.onclick = () => show(id);
+        nav.append(button);
+        return button;
+    });
+    settings.onclick = () => show(destination === 'settings' ? 'sheet' : 'settings');
     const controls = tabs.map(([id, label]) => {
         const button = document.createElement('button');
         button.type = 'button';
@@ -59,17 +88,25 @@ export function createSheetShell(launcher, changed = () => { }) {
         tablist.append(button);
         return button;
     });
-    const positionKey = () => destination === 'cast' ? 'cast' : fullscreen ? (wide ? 'fullscreen' : `fullscreen-${active}`) : active;
+    const positionKey = () => destination !== 'sheet' ? destination : fullscreen ? (wide ? 'fullscreen' : `fullscreen-${active}`) : active;
     const rememberPosition = () => positions.set(positionKey(), content.scrollTop);
     const restorePosition = () => { content.scrollTop = positions.get(positionKey()) ?? 0; };
     function applyTabs() {
         const columns = fullscreen && wide;
-        tablist.hidden = columns || destination === 'cast';
+        tablist.hidden = columns || destination !== 'sheet';
         panel.classList.toggle('mc-cast-destination', destination === 'cast');
-        const title = destination === 'cast' ? 'Cast' : 'Minor Character';
+        panel.dataset.destination = destination;
         const heading = panel.querySelector('h2');
-        if (heading.textContent !== title)
-            heading.textContent = title;
+        if (heading.textContent !== titles[destination])
+            heading.textContent = titles[destination];
+        for (const button of destinationButtons) {
+            const current = button.dataset.destination === destination;
+            if (current)
+                button.setAttribute('aria-current', 'page');
+            else
+                button.removeAttribute('aria-current');
+        }
+        settings.setAttribute('aria-pressed', String(destination === 'settings'));
         controls.forEach((button, index) => {
             const selected = tabs[index][0] === active;
             button.setAttribute('aria-selected', String(selected));
@@ -131,13 +168,11 @@ export function createSheetShell(launcher, changed = () => { }) {
             host.append(panel);
         }
         host?.classList.toggle('mc-sheet-open', !panel.hidden && !fullscreen);
-        launcher.setAttribute('aria-expanded', String(!panel.hidden && destination === 'sheet'));
+        launcher.setAttribute('aria-expanded', String(!panel.hidden));
         castLauncher.setAttribute('aria-expanded', String(!panel.hidden && destination === 'cast'));
         const composer = document.querySelector('#form_sheld');
         if (composer && launcher.parentElement !== composer)
             composer.prepend(launcher);
-        if (composer && castLauncher.parentElement !== composer)
-            composer.prepend(castLauncher);
         applyTabs();
         restorePosition();
     }
@@ -149,10 +184,10 @@ export function createSheetShell(launcher, changed = () => { }) {
         }
         panel.hidden = false;
         mount();
-        if (destination === 'cast')
-            back.focus();
-        else
+        if (destination === 'sheet')
             controls[tabs.findIndex(([id]) => id === active)].focus();
+        else
+            (destination === 'settings' ? settings : destinationButtons.find(button => button.dataset.destination === destination)).focus();
     }
     function setFullscreen(enabled) {
         if (enabled === fullscreen)
@@ -187,7 +222,7 @@ export function createSheetShell(launcher, changed = () => { }) {
         rememberPosition();
         panel.hidden = true;
         mount();
-        (destination === 'cast' ? castLauncher : launcher).focus();
+        launcher.focus();
     }
     const backToSheet = () => { if (fullscreen)
         setFullscreen(false);
@@ -200,7 +235,10 @@ export function createSheetShell(launcher, changed = () => { }) {
         }
     });
     back.onclick = backToSheet;
-    launcher.onclick = () => show();
+    launcher.onclick = () => { if (!panel.hidden && !fullscreen)
+        close();
+    else
+        show(destination === 'settings' ? 'sheet' : destination); };
     castLauncher.onclick = () => show('cast');
     return { get destination() { return destination; }, content, show, close, mount, setFullscreen, renderHistory: showHistory };
 }

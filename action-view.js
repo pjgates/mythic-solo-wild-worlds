@@ -26,6 +26,27 @@ function describeHarm(view, harm) {
         parts.push(`injury: ${harm.createdInjury.name}`);
     return `${parts.join(' · ')}.`;
 }
+/** Harm as it landed: the sentence and, when an Aspect absorbed it, that Aspect's track as it stands now. */
+function renderHarmLine(view, harm) {
+    const line = element('div');
+    line.className = 'mc-harm-line';
+    line.append(element('p', describeHarm(view, harm)));
+    const aspect = harm.command.targetAspectId ? view.sheet.aspects.find(a => a.id === harm.command.targetAspectId) : undefined;
+    if (aspect) {
+        const boxes = element('span');
+        boxes.className = 'mc-boxes mc-boxes-small';
+        boxes.setAttribute('role', 'img');
+        const marked = aspect.track.boxes.filter(box => box === 'marked').length, burned = aspect.track.boxes.filter(box => box === 'burned').length;
+        boxes.setAttribute('aria-label', `${aspect.name}: ${marked} marked, ${burned} burned of ${aspect.track.boxes.length}`);
+        for (const box of aspect.track.boxes) {
+            const pip = element('span');
+            pip.className = `mc-pip mc-${box}`;
+            boxes.append(pip);
+        }
+        line.append(boxes);
+    }
+    return line;
+}
 /** The one line a phone sees while nothing is pending: the latest result, or what the card is for. */
 function summarize(view, latest) {
     if (view.proposal)
@@ -36,6 +57,18 @@ function summarize(view, latest) {
         return 'No rolls this scene';
     const r = latest.receipt;
     return `${r.command.action.description} — ${r.result.outcome}${r.result.twist ? ' + Twist' : ''}`;
+}
+/** The quieter second line: where the campaign stands, so a phone sees Scene, Chaos and Exposure without the sheet. */
+function standing(view, chaos) {
+    const exposure = view.sheet.tracks.exposure.boxes;
+    const marked = exposure.filter(box => box !== 'clear').length;
+    return `Scene ${view.play.scene.number} · Chaos ${chaos ?? view.sheet.chaos} · Exposure ${marked} of ${exposure.length}`;
+}
+/** The dot beside the summary: the latest outcome's colour, gold while something waits. */
+function tone(view, latest) {
+    if (view.proposal || view.pendingManual)
+        return 'waiting';
+    return latest?.receipt ? latest.receipt.result.outcome.toLowerCase() : 'idle';
 }
 export function renderActions(root, controller, capture, ready, flow = {}) {
     const previous = cards.get(root);
@@ -63,14 +96,23 @@ export function renderActions(root, controller, capture, ready, flow = {}) {
     const expanded = showForm || !settled || !!flow.choices?.length || !!flow.fate;
     const header = element('header');
     header.className = 'mc-card-header';
+    const dot = element('span');
+    dot.className = `mc-card-dot mc-tone-${tone(view, latest)}`;
+    dot.setAttribute('aria-hidden', 'true');
+    const lines = element('div');
+    lines.className = 'mc-card-lines';
     const summary = element('p', summarize(view, latest));
     summary.className = 'mc-card-summary';
-    header.append(summary);
+    const where = element('p', standing(view, flow.chaos));
+    where.className = 'mc-card-standing';
+    lines.append(summary, where);
+    header.append(dot, lines);
     // A flow choice that already says Declare… is the one way into the form; a second Declare button beside it would only confuse.
     const declareOffered = !!flow.choices?.some(choice => choice.label.startsWith('Declare'));
     if (settled && (showForm || !declareOffered)) {
-        const toggle = button(showForm ? 'Hide' : 'Declare an action');
+        const toggle = button(showForm ? 'Close' : 'Declare', 'menu_button mc-card-toggle');
         toggle.setAttribute('aria-expanded', String(showForm));
+        toggle.setAttribute('aria-label', showForm ? 'Close the declaration' : 'Declare an action');
         toggle.onclick = () => { state.expanded = !showForm; renderActions(root, controller, capture, ready, flow); };
         header.append(toggle);
     }
@@ -125,7 +167,7 @@ export function renderActions(root, controller, capture, ready, flow = {}) {
         const receipt = renderReceipt(entry.receipt);
         receipt.classList.toggle('mc-pending', pending);
         if (entry.harm)
-            receipt.append(element('p', describeHarm(view, entry.harm)));
+            receipt.append(renderHarmLine(view, entry.harm));
         const handled = view.history.find(j => j.manualTarget === entry.operationId);
         if (handled)
             receipt.append(element('p', handled.manualNote));
@@ -141,5 +183,8 @@ export function renderActions(root, controller, capture, ready, flow = {}) {
     if (showForm && flow.expandedChoices?.length)
         root.append(choiceList(flow.expandedChoices, 'mc-flow-secondary'));
     root.classList.toggle('mc-card-expanded', expanded);
+    // Something to decide (a proposal, a pending result, the declaration) lifts the card over the dimmed chat on a phone.
+    root.classList.toggle('mc-card-modal', !!view.proposal || !!view.pendingManual || showForm);
     restoreDrafts(root, state.values);
+    root.querySelector('form.mc-action-declaration')?.dispatchEvent(new Event('mc-restored'));
 }

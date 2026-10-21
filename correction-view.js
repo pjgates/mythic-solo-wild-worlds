@@ -1,6 +1,7 @@
 import { sameValue } from "./game/minor-character/events.js";
 import { appendFieldEditors } from "./field-editor.js";
 import { createDraft, draftMatches } from "./sheet-draft.js";
+import { ICONS } from "./sheet-shell.js";
 const text = (tag, value) => {
     const node = document.createElement(tag);
     node.textContent = value;
@@ -58,47 +59,84 @@ export class CorrectionSession {
         const view = this.controller.playerView;
         if (!view)
             return;
-        const bar = document.createElement('section');
-        bar.className = 'mc-edit-bar';
-        bar.setAttribute('aria-label', 'Sheet corrections');
-        root.prepend(bar);
-        const button = (label) => {
+        const button = (label, className = 'menu_button') => {
             const control = document.createElement('button');
             control.type = 'button';
-            control.className = 'menu_button';
+            control.className = className;
             control.textContent = label;
             return control;
         };
         const session = this.session;
+        root.classList.toggle('mc-editing', !!session);
         if (!session) {
-            const edit = button('Edit');
+            const edit = button('Edit', 'menu_button mc-icon-button mc-edit-button');
             edit.disabled = !this.ready();
+            edit.innerHTML = ICONS.pencil;
+            edit.setAttribute('aria-label', 'Correct a sheet entry');
             edit.onclick = () => {
                 if (!this.ready())
                     return;
                 this.session = { view, draft: createDraft(view), saving: false, message: '' };
                 this.changed();
             };
-            bar.append(edit);
+            const slot = root.querySelector('.mc-identity-actions');
+            if (slot)
+                slot.append(edit);
+            else {
+                const bar = document.createElement('section');
+                bar.className = 'mc-edit-bar';
+                bar.setAttribute('aria-label', 'Sheet corrections');
+                bar.append(edit);
+                root.prepend(bar);
+            }
             return;
         }
+        // Editing: a gold bar on top says so and offers Cancel; the reason and Save sit together at the foot.
+        const bar = document.createElement('section');
+        bar.className = 'mc-edit-bar';
+        bar.setAttribute('aria-label', 'Sheet corrections');
+        root.prepend(bar);
+        const cancel = button('Cancel');
+        const heading = document.createElement('div');
+        heading.className = 'mc-edit-heading';
         const count = text('p', '');
-        const reasonLabel = text('label', 'Reason for correction');
+        heading.append(text('strong', 'Correcting the sheet'), count);
+        bar.append(cancel, heading);
+        const footer = document.createElement('section');
+        footer.className = 'mc-edit-footer';
+        footer.setAttribute('aria-label', 'Save corrections');
+        const changes = document.createElement('ul');
+        changes.className = 'mc-edit-changes';
+        const reasonLabel = text('label', 'Reason for correction · required, saved with it');
         const reason = document.createElement('textarea');
         reason.className = 'text_pole';
         reason.required = true;
         reason.rows = 2;
         reason.value = session.draft.reason;
+        reason.placeholder = 'For example: I forgot to mark Hearth Hex in scene 2';
         reason.setAttribute('aria-label', 'Reason for correction');
         reasonLabel.append(reason);
         reason.oninput = () => { session.draft.reason = reason.value; session.message = ''; this.updateSummary(); };
-        const save = button('Save'), cancel = button('Cancel');
+        const save = button('Save', 'menu_button mc-primary mc-save');
         const status = text('p', session.message);
         status.setAttribute('role', 'status');
+        const note = text('small', 'Recorded in the journal. Corrections never reroll, award advancement or clear a pending decision.');
+        const describe = (value) => value === null || value === undefined || value === '' ? 'None' : String(value);
         this.updateSummary = () => {
-            count.textContent = `${session.draft.changes.length} unsaved changes. Corrections do not reroll, award advancement or clear pending decisions.`;
-            save.disabled = session.saving || !this.ready() || !draftMatches(session.draft, view)
-                || !session.draft.changes.length || !session.draft.reason.trim();
+            const n = session.draft.changes.length;
+            count.textContent = n ? `${n} unsaved ${n === 1 ? 'change' : 'changes'}` : 'No changes yet';
+            changes.replaceChildren(...session.draft.changes.map(change => {
+                const field = session.view.editableFields.find(entry => entry.ref.owner === change.ref.owner
+                    && entry.ref.entityId === change.ref.entityId && entry.ref.field === change.ref.field && entry.ref.box === change.ref.box);
+                const item = document.createElement('li');
+                item.append(text('strong', field?.label ?? change.ref.field), text('span', ` ${describe(field?.value)} → `), text('em', describe(change.value)));
+                return item;
+            }));
+            changes.hidden = !n;
+            const ready = !session.saving && this.ready() && draftMatches(session.draft, view) && n > 0 && !!session.draft.reason.trim();
+            save.disabled = !ready;
+            save.textContent = session.saving ? 'Saving…' : n === 0 ? 'Nothing to save' : !session.draft.reason.trim()
+                ? 'Add a reason to save' : `Save ${n} ${n === 1 ? 'correction' : 'corrections'}`;
         };
         this.updateSummary();
         cancel.disabled = session.saving;
@@ -108,7 +146,8 @@ export class CorrectionSession {
         } };
         save.onclick = () => { void this.save(root, session); };
         const details = document.createElement('details');
-        details.append(text('summary', 'Exceptional corrections · rule data and bindings'), text('p', 'Repair recorded competence, rescues, class bindings and Aspect definitions. These changes share the required correction reason; definition repairs retain revision history.'));
+        details.className = 'mc-exceptional';
+        details.append(text('summary', 'Exceptional corrections · rule data and bindings'), text('p', 'Repair recorded competence, rescues, class bindings and Aspect definitions. These share the correction reason; definition repairs keep their revision history.'));
         const groups = new Set();
         for (const field of session.view.editableFields) {
             const { owner, entityId, field: key } = field.ref;
@@ -124,7 +163,8 @@ export class CorrectionSession {
             appendFieldEditors(group, session.view, this.editor, owner, JSON.parse(entityId), owner === 'class-state' ? ['activeClass'] : undefined);
             details.append(group);
         }
-        bar.append(count, reasonLabel, save, cancel, status, details);
+        footer.append(changes, reasonLabel, save, note, status);
+        root.append(details, footer);
         const locked = session.saving || !!session.prepared;
         reason.disabled = locked;
         if (locked)

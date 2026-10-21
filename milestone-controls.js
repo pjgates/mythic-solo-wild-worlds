@@ -50,10 +50,20 @@ function checkbox(form, label) {
     return control;
 }
 const slug = (value) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'item';
-export function renderMilestoneControls(root, controller, capture, ready, checkpointTools) {
+export function renderMilestoneControls(root, controller, capture, ready, checkpointTools, only) {
     const view = controller.playerView;
     if (!view)
         return;
+    // Campaign tools open one group at a time: the chosen group renders open, without its disclosure line.
+    const place = (group, name) => {
+        if (only && only !== name)
+            return;
+        if (only) {
+            group.open = true;
+            group.classList.add('mc-milestone-solo');
+        }
+        root.append(group);
+    };
     const status = el('p', '');
     status.setAttribute('role', 'status');
     async function runOp(buttonEl, action) {
@@ -175,7 +185,7 @@ export function renderMilestoneControls(root, controller, capture, ready, checkp
         awakeningBtn.onclick = () => runOp(awakeningBtn, context => controller.activateAwakening(context));
         originDetails.append(el('p', 'Origin Awakening available once this arc.'), awakeningBtn);
     }
-    root.append(originDetails);
+    place(originDetails, 'origin');
     // 2. Exposure, Canon & Mysteries
     const worldDetails = document.createElement('details');
     worldDetails.className = 'mc-milestone-world';
@@ -304,7 +314,7 @@ export function renderMilestoneControls(root, controller, capture, ready, checkp
         }));
     };
     worldDetails.append(grandForm);
-    root.append(worldDetails);
+    place(worldDetails, 'world');
     // 3. Downtime, Drives, Milestones, Projects & Breakthrough
     const downtimeDetails = document.createElement('details');
     downtimeDetails.className = 'mc-milestone-downtime';
@@ -517,7 +527,7 @@ export function renderMilestoneControls(root, controller, capture, ready, checkp
         }));
     };
     downtimeDetails.append(rankForm);
-    root.append(downtimeDetails);
+    place(downtimeDetails, 'downtime');
     // 4. Encounters (Hazards & Mayfly Roll, Dungeon Runs, Tournaments) & Private Keeper Drawer
     const encounterDetails = document.createElement('details');
     encounterDetails.className = 'mc-milestone-encounters';
@@ -749,7 +759,7 @@ export function renderMilestoneControls(root, controller, capture, ready, checkp
     };
     keeperDrawer.addEventListener('toggle', renderKeeperBody);
     encounterDetails.append(keeperDrawer);
-    root.append(encounterDetails);
+    place(encounterDetails, 'encounters');
     // 5. Branches, Portable Checkpoints & GitHub Sync
     const checkpointDetails = document.createElement('details');
     checkpointDetails.className = 'mc-milestone-checkpoints';
@@ -833,5 +843,6 @@ export function renderMilestoneControls(root, controller, capture, ready, checkp
         }
     };
     checkpointDetails.append(ghForm);
-    root.append(checkpointDetails, status);
+    place(checkpointDetails, 'checkpoints');
+    root.append(status);
 }

@@ -10,6 +10,7 @@ export function renderTrack(root, name, value, renderBox) {
     boxes.setAttribute('role', renderBox ? 'group' : 'img');
     const states = [...value.boxes];
     const summary = text('small', '');
+    summary.className = 'mc-track-summary';
     function summarize() {
         const counts = `${states.filter(b => b === 'marked').length} marked, ${states.filter(b => b === 'burned').length} burned, ${states.filter(b => b === 'clear').length} clear of ${states.length} boxes`;
         boxes.setAttribute('aria-label', `${name}: ${counts}`);
@@ -27,6 +28,8 @@ export function renderTrack(root, name, value, renderBox) {
     }
     boxes.className = 'mc-boxes';
     summarize();
-    line.append(boxes, summary, text('small', `When full: ${value.full}`));
+    const full = text('small', `When full: ${value.full}`);
+    full.className = 'mc-track-full';
+    line.append(boxes, summary, full);
     root.append(line);
 }

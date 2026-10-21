@@ -1,93 +1,341 @@
-/* Extension surfaces inherit the host palette without changing host chat styling. */
-:is(#minor-character-sheet, #minor-character-actions, #minor-character-launch, #minor-character-cast-launch) {
+/*
+ * Minor Character, Greyward Night layout.
+ * Every colour derives from the host theme's variables (Moonlit Echoes / SillyTavern UI theme), so a preset
+ * change restyles the extension. Fixed hues (outcomes, elements) are mixed with the body colour so they keep
+ * contrast on a light theme too. Nothing here styles host chat outside the extension's own elements,
+ * except dimming #chat while the play card asks for a decision on a phone.
+ */
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-launch, #minor-character-fullscreen) {
   --mc-accent: var(--customThemeColor, #5fa8f0);
   --mc-gold: var(--customThemeColor2, #e8b86a);
   --mc-panel: var(--SmartThemeBlurTintColor, #0f141c);
   --mc-text: var(--SmartThemeBodyColor, #d6dce6);
   --mc-border: var(--SmartThemeBorderColor, #637083);
-  --mc-raised: color-mix(in srgb, var(--mc-text) 5%, var(--mc-panel));
-  --mc-control-border: color-mix(in srgb, var(--mc-text) 65%, var(--mc-panel));
-  color: var(--mc-text); background: var(--mc-panel);
-  font: 16px/1.5 system-ui, sans-serif;
+  --mc-raised: color-mix(in srgb, var(--mc-text) 6%, var(--mc-panel));
+  --mc-raised-2: color-mix(in srgb, var(--mc-text) 10%, var(--mc-panel));
+  --mc-hairline: color-mix(in srgb, var(--mc-text) 14%, var(--mc-panel));
+  --mc-control-border: color-mix(in srgb, var(--mc-text) 45%, var(--mc-panel));
+  --mc-muted: color-mix(in srgb, var(--mc-text) 70%, var(--mc-panel));
+  --mc-accent-text: color-mix(in srgb, var(--mc-accent) 70%, var(--mc-text));
+  --mc-accent-soft: color-mix(in srgb, var(--mc-accent) 16%, var(--mc-panel));
+  --mc-gold-text: color-mix(in srgb, var(--mc-gold) 80%, var(--mc-text));
+  --mc-gold-soft: color-mix(in srgb, var(--mc-gold) 12%, var(--mc-panel));
+  --mc-triumph: color-mix(in srgb, #7fc28a 78%, var(--mc-text));
+  --mc-conflict: var(--mc-gold-text);
+  --mc-disaster: color-mix(in srgb, #f08a76 78%, var(--mc-text));
+  --mc-twist: color-mix(in srgb, #c7bdf0 78%, var(--mc-text));
+  --mc-twist-soft: color-mix(in srgb, #c7bdf0 12%, var(--mc-panel));
+  --mc-serif: 'Iowan Old Style', 'Palatino Linotype', Charter, 'Source Serif 4', Georgia, serif;
+  --mc-radius: 10px;
+  color: var(--mc-text);
+  font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
-:is(#minor-character-sheet, #minor-character-actions) :is(button, input, select, textarea),
-:is(#minor-character-launch, #minor-character-cast-launch) {
+:is(#minor-character-sheet, #minor-character-actions) { background: var(--mc-panel); }
+:is(#minor-character-sheet, #minor-character-actions) *, :is(#minor-character-sheet, #minor-character-actions) *::before { box-sizing: border-box; }
+
+/* Utilities */
+:is(#minor-character-sheet, #minor-character-actions) .mc-visually-hidden {
+  position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+:is(#minor-character-sheet, #minor-character-actions) [hidden], #minor-character-sheet[hidden], #minor-character-actions[hidden] { display: none !important; }
+:is(#minor-character-sheet, #minor-character-actions) .mc-hint { color: var(--mc-muted); font-size: 13px; margin: 4px 0; }
+:is(#minor-character-sheet, #minor-character-actions) .mc-notice {
+  margin: 8px 0; padding: 8px 10px; border-radius: var(--mc-radius); border: 1px solid var(--mc-gold); background: var(--mc-gold-soft); font-size: 14px;
+}
+:is(#minor-character-sheet, #minor-character-actions) .mc-prose,
+:is(#minor-character-sheet, #minor-character-actions) .mc-prose-input { font-family: var(--mc-serif); font-size: 17px; line-height: 1.5; }
+:is(#minor-character-sheet, #minor-character-actions) p { margin: 6px 0; }
+
+/* Controls */
+:is(#minor-character-sheet, #minor-character-actions) :where(button, input:not([type="checkbox"]):not([type="radio"]), select, textarea),
+#minor-character-launch {
   color: var(--mc-text); background: var(--mc-raised); font: inherit;
-  border: 1px solid var(--mc-control-border); border-radius: 6px;
-  min-width: 44px; min-height: 44px; padding: 8px 12px; box-sizing: border-box;
+  border: 1px solid var(--mc-control-border); border-radius: var(--mc-radius);
+  min-height: 44px; padding: 8px 12px; margin: 0;
 }
-:is(#minor-character-sheet, #minor-character-actions) :is(button, summary) { cursor: pointer; }
-:is(#minor-character-sheet, #minor-character-actions) button:disabled { cursor: default; opacity: .6; }
-:is(#minor-character-sheet, #minor-character-actions) button:enabled:hover,
-:is(#minor-character-launch, #minor-character-cast-launch):hover { border-color: var(--mc-accent); text-decoration: underline; }
-:is(#minor-character-sheet, #minor-character-actions) :focus-visible,
-:is(#minor-character-launch, #minor-character-cast-launch):focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
-:is(#minor-character-sheet, #minor-character-actions) p { line-height: 1.55; }
-#minor-character-sheet .mc-identity h3,
-#minor-character-sheet :is(.mc-aspects, .mc-life, .mc-campaign-details) article > p,
-#minor-character-sheet .mc-life li > span,
-:is(#minor-character-sheet, #minor-character-actions) article[data-operation-id] > p:first-child,
-#minor-character-actions .mc-action-declaration > p {
-  font-family: 'Iowan Old Style', 'Palatino Linotype', Charter, Georgia, serif;
-  font-size: 1.0625em;
+:is(#minor-character-sheet, #minor-character-actions) :is(input, select, textarea) { width: 100%; max-width: 100%; font-size: 16px; }
+:is(#minor-character-sheet, #minor-character-actions) button { min-width: 44px; cursor: pointer; font-weight: 600; }
+:is(#minor-character-sheet, #minor-character-actions) button:disabled { cursor: default; opacity: .55; }
+:is(#minor-character-sheet, #minor-character-actions) :where(button:enabled:hover) { border-color: var(--mc-accent); }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-launch) :focus-visible,
+#minor-character-launch:focus-visible { outline: 2px solid var(--mc-accent); outline-offset: 2px; }
+:is(#minor-character-sheet, #minor-character-actions) summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 6px; }
+:is(#minor-character-sheet, #minor-character-actions) label { display: grid; gap: 4px; margin: 8px 0; font-size: 14px; color: var(--mc-muted); }
+:is(#minor-character-sheet, #minor-character-actions) label > :is(input, select, textarea) { color: var(--mc-text); }
+:is(#minor-character-sheet, #minor-character-actions) .mc-checkbox { display: flex; align-items: center; gap: 12px; min-height: 44px; color: var(--mc-text); }
+:is(#minor-character-sheet, #minor-character-actions) input[type="checkbox"] { width: 22px; height: 22px; flex: 0 0 22px; margin: 0; accent-color: var(--mc-accent); }
+:is(#minor-character-sheet, #minor-character-actions) .mc-primary {
+  background: var(--mc-accent); color: var(--mc-panel); border-color: var(--mc-accent); font-weight: 700; min-height: 50px;
 }
-:is(#minor-character-sheet, #minor-character-actions) article[data-operation-id] {
-  margin: 12px 0; padding: 12px; border: 1px solid var(--mc-border);
-  border-left: 3px solid var(--mc-accent); border-radius: 6px; background: var(--mc-raised);
+:is(#minor-character-sheet, #minor-character-actions) .mc-primary:enabled:hover { filter: brightness(1.08); }
+:is(#minor-character-sheet, #minor-character-actions) .mc-icon-button {
+  width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border-color: transparent;
 }
-#minor-character-actions article.mc-pending { border-left-color: var(--mc-gold); }
-#minor-character-actions .mc-checkbox { display: flex; align-items: center; min-height: 44px; gap: 12px; }
-#minor-character-actions .mc-checkbox input { width: 44px; flex: 0 0 44px; accent-color: var(--mc-accent); }
-#minor-character-sheet > header > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
-#minor-character-sheet > header h2 { font-size: 1.125rem; }
-#minor-character-sheet [data-sheet-tab], #minor-character-sheet .mc-sheet-body { min-width: 0; }
-#minor-character-sheet .mc-identity h3 { padding: 0; background: none; font-size: 1.75rem; text-transform: none; letter-spacing: 0; }
-#minor-character-sheet .mc-pill {
-  display: inline-block; padding: 2px 12px; margin: 4px 0; border: 1px solid currentColor;
-  border-radius: 999px; font: 700 19px/1.4 system-ui, sans-serif; vertical-align: middle;
+:is(#minor-character-sheet, #minor-character-actions) .mc-link-button {
+  background: transparent; border: 0; padding: 0 2px; color: var(--mc-accent-text); font-weight: 500; min-height: 44px;
 }
-#minor-character-sheet .mc-class-pill { background: color-mix(in srgb, var(--mc-accent) 18%, var(--mc-panel)); }
-#minor-character-sheet .mc-element-pill { color: #0f141c; background: var(--mc-element); border-color: #0f141c; }
+:is(#minor-character-sheet, #minor-character-actions) .mc-actions { display: grid; gap: 8px; margin: 10px 0; }
+
+/* Pills */
+:is(#minor-character-sheet, #minor-character-actions) .mc-pill {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px;
+  border: 1px solid var(--mc-control-border); font-size: 13px; font-weight: 600; line-height: 1.5;
+}
+:is(#minor-character-sheet, #minor-character-actions) :is(.mc-pill-class, .mc-class-pill) { border-color: var(--mc-accent); background: var(--mc-accent-soft); color: var(--mc-accent-text); }
+:is(#minor-character-sheet, #minor-character-actions) .mc-pill-cut { border-color: var(--mc-gold); color: var(--mc-gold-text); }
+:is(#minor-character-sheet, #minor-character-actions) .mc-pill-twist { border-color: var(--mc-twist); background: var(--mc-twist-soft); color: var(--mc-twist); }
+#minor-character-sheet .mc-element-pill { color: #0f141c; background: var(--mc-element); border-color: transparent; }
 #minor-character-sheet [data-element="Sun"] { --mc-element: #E5634B; color: #fff; }
 #minor-character-sheet [data-element="Earth"] { --mc-element: #C49A5E; }
 #minor-character-sheet [data-element="Moon"] { --mc-element: #C7BDF0; }
 #minor-character-sheet [data-element="Ocean"] { --mc-element: #3A6BD1; color: #fff; }
 #minor-character-sheet [data-element="Sky"] { --mc-element: #A6DCEB; }
 #minor-character-sheet [data-element="Nature"] { --mc-element: #7FC28A; }
-#minor-character-sheet [data-element="Aether"] { --mc-element: #F2F4F8; border-style: dashed; box-shadow: 0 0 8px #f2f4f833; }
-#minor-character-sheet [data-element=""] { background: transparent; color: var(--mc-text); border: 1px dashed var(--mc-control-border); }
-#minor-character-sheet [data-mechanical-history] ol { padding-left: 24px; }
-#minor-character-sheet [data-mechanical-history] li { padding: 8px 0; border-bottom: 1px solid var(--mc-border); }
-@media (forced-colors: active) {
-  #minor-character-sheet [role="tab"][aria-selected="true"] { text-decoration: underline; }
-  #minor-character-sheet .mc-element-pill { border-color: CanvasText; }
-}
+#minor-character-sheet [data-element="Aether"] { --mc-element: #F2F4F8; border: 1px dashed #9aa6b8; box-shadow: 0 0 8px #f2f4f833; }
+#minor-character-sheet [data-element=""] { background: transparent; color: var(--mc-muted); border: 1px dashed var(--mc-control-border); }
 
-:is(#minor-character-launch, #minor-character-cast-launch) {
-  position: static; display: block; width: max-content; margin: 4px 8px 4px auto;
-  min-height: 44px; padding: 10px 16px; border-radius: 12px;
+/* Tracks: boxes are drawn, never typed; marked is gold, burned is a red-tinted cross. */
+:is(#minor-character-sheet, #minor-character-actions) .mc-boxes { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; align-items: center; }
+:is(#minor-character-sheet, #minor-character-actions) .mc-pip {
+  display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex: 0 0 20px;
+  border: 2px solid var(--mc-control-border); border-radius: 5px; font-size: 13px; font-weight: 800; color: transparent;
 }
+:is(#minor-character-sheet, #minor-character-actions) .mc-pip.mc-marked { background: var(--mc-gold); border-color: var(--mc-gold); }
+:is(#minor-character-sheet, #minor-character-actions) .mc-pip.mc-burned { border-color: var(--mc-disaster); color: var(--mc-disaster); background: color-mix(in srgb, var(--mc-disaster) 18%, var(--mc-panel)); }
+:is(#minor-character-sheet, #minor-character-actions) .mc-boxes-small { gap: 3px; margin: 4px 0 0; }
+:is(#minor-character-sheet, #minor-character-actions) .mc-boxes-small .mc-pip { width: 11px; height: 11px; flex-basis: 11px; border-width: 1.5px; border-radius: 3px; font-size: 0; }
+#minor-character-sheet .mc-track-full { display: block; color: var(--mc-muted); font-size: 12.5px; }
+#minor-character-sheet .mc-sheet-body:not(.mc-editing) .mc-track-summary { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+#minor-character-sheet .mc-track-summary { display: block; color: var(--mc-gold-text); font-size: 12.5px; }
+
+/* Composer launcher: one round button with Sera's initials. */
+#minor-character-launch {
+  position: static; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  width: 40px; height: 40px; min-height: 40px; padding: 0; margin: 2px 6px; border-radius: 50%;
+  border: 2px solid var(--mc-accent); background: var(--mc-raised); font-size: 13px; font-weight: 800; letter-spacing: .02em; cursor: pointer;
+}
+#minor-character-launch[aria-expanded="true"] { background: var(--mc-accent); color: var(--mc-panel); }
+#minor-character-cast-launch { display: none; }
+
+/* The panel */
 #minor-character-sheet {
-  border: 1px solid var(--mc-border); box-sizing: border-box; min-width: 0; min-height: 0;
+  border: 1px solid var(--mc-hairline); min-width: 0; min-height: 0;
   display: flex; flex-direction: column; overflow: hidden; z-index: 32;
 }
-#minor-character-sheet[hidden], #minor-character-sheet [hidden],
-#minor-character-sheet [role="tablist"][hidden] { display: none; }
-#minor-character-sheet > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px; }
-#minor-character-sheet > header h2 { margin: 0; }
-#minor-character-sheet .mc-identity { padding: 12px 0; }
-#minor-character-sheet .mc-identity summary { min-height: 44px; cursor: pointer; padding: 12px 0; box-sizing: border-box; }
-#minor-character-sheet .mc-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-#minor-character-sheet button { min-height: 44px; padding: 8px 12px; }
-#minor-character-sheet [role="tablist"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); flex-shrink: 0; border-bottom: 1px solid var(--mc-border); }
-#minor-character-sheet [role="tab"] { min-width: 0; overflow-wrap: normal; border: 0; background: transparent; color: inherit; cursor: pointer; }
-#minor-character-sheet [role="tab"][aria-selected="true"] { box-shadow: inset 0 -3px currentColor; font-weight: bold; }
-#minor-character-sheet :focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+#minor-character-sheet > .mc-panel-bar {
+  display: flex; align-items: center; gap: 4px; padding: 6px 6px; border-bottom: 1px solid var(--mc-hairline); flex-shrink: 0;
+}
+#minor-character-sheet .mc-destinations {
+  flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px;
+  padding: 3px; border-radius: 12px; background: var(--mc-raised);
+}
+#minor-character-sheet .mc-destinations button {
+  white-space: nowrap; overflow-wrap: normal; min-height: 38px; padding: 4px 6px; border: 0; border-radius: 9px; background: transparent; color: var(--mc-muted); font-weight: 500; font-size: 14px;
+}
+#minor-character-sheet .mc-destinations button[aria-current="page"] { background: var(--mc-raised-2); color: var(--mc-text); font-weight: 700; }
+#minor-character-sheet [data-settings][aria-pressed="true"] { color: var(--mc-accent-text); background: var(--mc-accent-soft); }
+#minor-character-sheet [role="tablist"] {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); flex-shrink: 0; border-bottom: 1px solid var(--mc-hairline); padding: 0 8px;
+}
+#minor-character-sheet [role="tab"] {
+  min-width: 0; border: 0; border-radius: 0; background: transparent; color: var(--mc-muted); font-weight: 500; font-size: 14px;
+}
+#minor-character-sheet [role="tab"][aria-selected="true"] { color: var(--mc-text); font-weight: 700; box-shadow: inset 0 -3px var(--mc-accent); }
 #minor-character-sheet .mc-content { overflow: auto; overscroll-behavior: contain; padding: 0 16px 28px; flex: 1; min-height: 0; }
+#minor-character-sheet .mc-panel-status { margin: 8px 0 0; font-size: 12.5px; color: var(--mc-muted); }
+#minor-character-sheet .mc-panel-status:empty { display: none; }
+#minor-character-sheet .mc-campaign-setup { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+#minor-character-sheet .mc-agent-notice { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--mc-gold); border-radius: var(--mc-radius); background: var(--mc-gold-soft); font-size: 14px; }
+#minor-character-sheet * { overflow-wrap: anywhere; }
+
+/* Section headings: quiet, sentence case, no banners. */
+#minor-character-sheet h3 { margin: 20px 0 8px; font-size: 13px; font-weight: 700; color: var(--mc-muted); letter-spacing: .01em; }
+#minor-character-sheet h4 { margin: 14px 0 6px; font-size: 15px; font-weight: 700; }
+#minor-character-sheet section { border: 0; padding: 0; }
+#minor-character-sheet small { display: block; line-height: 1.45; }
+#minor-character-sheet dt { font-weight: 600; color: var(--mc-muted); text-transform: capitalize; margin-top: 8px; font-size: 13px; }
+#minor-character-sheet dd { margin: 2px 0 6px; }
+
+/* Identity header */
+#minor-character-sheet .mc-identity { padding: 14px 0 6px; display: grid; gap: 10px; }
+#minor-character-sheet .mc-identity-title { display: flex; align-items: flex-start; gap: 8px; }
+#minor-character-sheet .mc-identity-title > div:first-child { flex: 1; min-width: 0; }
+#minor-character-sheet .mc-identity h3 { margin: 0; font: 600 26px/1.15 var(--mc-serif); color: var(--mc-text); letter-spacing: 0; }
+#minor-character-sheet .mc-identity-subtitle { margin: 2px 0 0; font-size: 13px; color: var(--mc-muted); }
+#minor-character-sheet .mc-identity-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+#minor-character-sheet .mc-edit-button { border: 1px solid var(--mc-control-border); margin: -4px -4px 0 0; }
+#minor-character-sheet .mc-vitals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+#minor-character-sheet .mc-vital { padding: 8px 10px; border-radius: var(--mc-radius); background: var(--mc-raised); font-size: 12px; color: var(--mc-muted); }
+#minor-character-sheet .mc-vital strong { display: block; color: var(--mc-text); font-size: 14px; margin-top: 2px; }
+
+/* Skills tab */
+#minor-character-sheet .mc-edge-list { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 0; }
+#minor-character-sheet .mc-edge-list li { padding: 6px 14px; border-radius: var(--mc-radius); border: 1px solid var(--mc-control-border); background: var(--mc-raised); font-weight: 600; }
+#minor-character-sheet .mc-edge-list li:not(.mc-edge-selected) { border-style: dashed; color: var(--mc-muted); background: transparent; }
+#minor-character-sheet .mc-pip-legend { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--mc-muted); margin: -4px 0 4px; }
+#minor-character-sheet .mc-pip-legend .mc-skill-pips:not(:first-child) { margin-left: 8px; }
+#minor-character-sheet .mc-skill-pips { display: inline-flex; gap: 4px; vertical-align: middle; }
+#minor-character-sheet .mc-skill-pips span { width: 11px; height: 11px; border-radius: 50%; background: var(--mc-text); }
+#minor-character-sheet .mc-pips-class span { background: var(--mc-accent); }
+#minor-character-sheet .mc-capability-table { width: 100%; border-collapse: collapse; }
+#minor-character-sheet .mc-capability-table :is(th, td) { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--mc-hairline); vertical-align: middle; min-height: 44px; height: 44px; }
+#minor-character-sheet .mc-capability-table tbody th { font-weight: 600; }
+#minor-character-sheet .mc-capability-table td { font-variant-numeric: tabular-nums; }
+#minor-character-sheet .mc-capability-table .mc-total { text-align: right; font-weight: 700; width: 4.5em; }
+#minor-character-sheet .mc-capability-table .mc-untrained { display: none; }
+#minor-character-sheet .mc-capability-table.mc-show-untrained .mc-untrained { display: table-row-group; }
+#minor-character-sheet .mc-help { margin-top: 8px; color: var(--mc-muted); font-size: 14px; }
+#minor-character-sheet .mc-stored-competence { margin-top: 4px; }
+#minor-character-sheet .mc-campaign-track { margin: 12px 0; }
+
+/* Aspects, Drives, Story */
+#minor-character-sheet :is(.mc-aspects, .mc-life) article {
+  margin: 10px 0; padding: 12px; border-radius: 12px; background: var(--mc-raised); border: 1px solid var(--mc-hairline);
+}
+#minor-character-sheet :is(.mc-aspects, .mc-life) article > div > strong,
+#minor-character-sheet :is(.mc-aspects, .mc-life) article > p > strong { font-size: 16px; }
+#minor-character-sheet .mc-aspects article > p, #minor-character-sheet .mc-life li > span,
+#minor-character-sheet .mc-life article > p { font-family: var(--mc-serif); font-size: 16px; white-space: pre-line; }
+#minor-character-sheet .mc-aspects article > small { color: var(--mc-muted); font-size: 12.5px; }
+#minor-character-sheet .mc-life ul { padding-left: 20px; }
+#minor-character-sheet .mc-life li { margin: 6px 0; }
+#minor-character-sheet .mc-facts { display: grid; grid-template-columns: minmax(84px, max-content) minmax(0, 1fr); gap: 4px 14px; margin: 14px 0; }
+#minor-character-sheet .mc-facts dt { margin: 0; }
+#minor-character-sheet .mc-facts dd { margin: 0; }
+#minor-character-sheet [data-mechanical-history] ol { padding-left: 20px; }
+#minor-character-sheet [data-mechanical-history] li { padding: 8px 0; border-bottom: 1px solid var(--mc-hairline); }
+#minor-character-sheet [data-mechanical-history] > p { color: var(--mc-muted); font-size: 13px; }
+
+/* Edit mode: a gold bar on top, the reason and Save at the foot, boxes and ranks as tap targets. */
+#minor-character-sheet .mc-sheet-body.mc-editing { padding-bottom: 8px; }
+#minor-character-sheet .mc-edit-bar {
+  position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 8px; margin: 0 -16px; padding: 6px 12px;
+  background: color-mix(in srgb, var(--mc-gold) 18%, var(--mc-panel)); border-bottom: 2px solid var(--mc-gold);
+}
+#minor-character-sheet .mc-edit-bar > button { background: transparent; border-color: transparent; color: var(--mc-gold-text); }
+#minor-character-sheet .mc-edit-heading { flex: 1; min-width: 0; text-align: center; line-height: 1.25; padding-right: 52px; }
+#minor-character-sheet .mc-edit-heading strong { display: block; }
+#minor-character-sheet .mc-edit-heading p { margin: 0; font-size: 12px; color: var(--mc-muted); }
+#minor-character-sheet .mc-edit-footer {
+  position: sticky; bottom: -28px; z-index: 3; margin: 16px -16px -28px; padding: 12px 16px 16px; display: grid; gap: 8px;
+  background: color-mix(in srgb, var(--mc-gold) 7%, var(--mc-panel)); border-top: 1px solid color-mix(in srgb, var(--mc-gold) 40%, var(--mc-panel));
+}
+#minor-character-sheet .mc-edit-footer label { margin: 0; color: var(--mc-gold-text); font-weight: 600; }
+#minor-character-sheet .mc-edit-footer textarea { border-color: color-mix(in srgb, var(--mc-gold) 60%, var(--mc-panel)); min-height: 44px; }
+#minor-character-sheet .mc-edit-footer .mc-save { background: var(--mc-gold); border-color: var(--mc-gold); color: var(--mc-panel); }
+#minor-character-sheet .mc-edit-footer .mc-save:disabled { background: var(--mc-raised); border-color: var(--mc-hairline); color: var(--mc-muted); opacity: 1; }
+#minor-character-sheet .mc-edit-footer > small { color: var(--mc-muted); text-align: center; font-size: 12px; }
+#minor-character-sheet .mc-edit-changes { margin: 0; padding: 0; list-style: none; font-size: 13px; max-height: 96px; overflow: auto; }
+#minor-character-sheet .mc-edit-changes em { font-style: normal; color: var(--mc-gold-text); font-weight: 600; }
+#minor-character-sheet .mc-exceptional summary { color: var(--mc-muted); font-size: 14px; }
+#minor-character-sheet .mc-field-editor { min-width: 0; margin: 6px 0; }
+#minor-character-sheet .mc-field-editor label { text-transform: capitalize; margin: 4px 0; }
+#minor-character-sheet .mc-field-editor textarea { resize: vertical; }
+#minor-character-sheet .mc-field-editor .mc-field-absent { display: flex; align-items: center; gap: 8px; text-transform: none; }
+#minor-character-sheet .mc-stepper { display: inline-flex; align-items: center; gap: 6px; }
+#minor-character-sheet .mc-stepper input { width: 64px; text-align: center; font-weight: 700; }
+#minor-character-sheet .mc-stepper .mc-step { width: 44px; padding: 0; font-size: 20px; line-height: 1; }
+#minor-character-sheet .mc-boxes[role="group"] { gap: 0; }
+#minor-character-sheet .mc-boxes[role="group"] .mc-field-editor { margin: 0; }
+#minor-character-sheet .mc-track-editor {
+  position: relative; width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; background: transparent;
+  color: transparent; font-size: 16px; font-weight: 800;
+}
+#minor-character-sheet .mc-track-editor::before {
+  content: ''; position: absolute; inset: 8px; border: 2px solid var(--mc-control-border); border-radius: 7px; z-index: -1;
+}
+#minor-character-sheet .mc-track-editor { z-index: 0; }
+#minor-character-sheet .mc-track-editor.mc-marked { color: var(--mc-panel); }
+#minor-character-sheet .mc-track-editor.mc-marked::before { background: var(--mc-gold); border-color: var(--mc-gold); }
+#minor-character-sheet .mc-track-editor.mc-burned { color: var(--mc-disaster); }
+#minor-character-sheet .mc-track-editor.mc-burned::before { border-color: var(--mc-disaster); background: color-mix(in srgb, var(--mc-disaster) 18%, var(--mc-panel)); }
+#minor-character-sheet .mc-track-editor.mc-changed::before { box-shadow: 0 0 0 2px var(--mc-panel), 0 0 0 4px var(--mc-gold); }
+
+/* Campaign */
+#minor-character-sheet .mc-campaign { padding-top: 14px; }
+#minor-character-sheet .mc-scene-card { padding: 14px; border-radius: 14px; background: var(--mc-raised); border: 1px solid var(--mc-hairline); display: grid; gap: 10px; }
+#minor-character-sheet .mc-scene-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+#minor-character-sheet .mc-scene-head h3 { margin: 0; font-size: 18px; color: var(--mc-text); }
+#minor-character-sheet .mc-scene-head span { font-size: 13px; color: var(--mc-muted); }
+#minor-character-sheet .mc-tool-list { list-style: none; margin: 0; padding: 0; }
+#minor-character-sheet .mc-tool-row {
+  width: 100%; min-height: 60px; display: flex; align-items: center; gap: 12px; padding: 8px 0; text-align: left;
+  border: 0; border-bottom: 1px solid var(--mc-hairline); border-radius: 0; background: transparent; font-weight: 400;
+}
+#minor-character-sheet .mc-tool-label { flex: 1; min-width: 0; display: grid; line-height: 1.3; }
+#minor-character-sheet .mc-tool-label span { font-size: 13px; color: var(--mc-muted); }
+#minor-character-sheet .mc-chevron { color: var(--mc-muted); display: inline-flex; }
+#minor-character-sheet .mc-tool-group:last-child .mc-tool-row:last-child { border-bottom: 0; }
+#minor-character-sheet .mc-tool-header { display: flex; align-items: center; gap: 4px; margin: 0 0 4px -8px; }
+#minor-character-sheet .mc-tool-header h3 { margin: 0; font-size: 17px; color: var(--mc-text); }
+#minor-character-sheet .mc-milestone-solo > summary { display: none; }
+#minor-character-sheet .mc-settings-file { margin-top: 20px; padding-top: 4px; border-top: 1px solid var(--mc-hairline); }
+#minor-character-sheet .mc-settings-file p { color: var(--mc-muted); font-size: 13px; }
+
+/* Forms inside Campaign tools, Play settings and the scene review: one stacked column of 44–48px rows. */
+#minor-character-sheet :is(.mc-play-controls, .mc-play-settings, [aria-label="Scene GM"], .mc-scene-review, .mc-mythic) { min-width: 0; }
+#minor-character-sheet .mc-play-controls details { margin: 8px 0; border-top: 1px solid var(--mc-hairline); }
+#minor-character-sheet .mc-play-controls details.mc-milestone-solo { border-top: 0; margin: 0; }
+#minor-character-sheet .mc-play-controls summary { font-weight: 600; }
+#minor-character-sheet .mc-play-controls form {
+  display: grid; gap: 8px; margin: 12px 0; padding: 12px; border: 1px solid var(--mc-hairline); border-radius: 12px; background: var(--mc-raised);
+}
+#minor-character-sheet .mc-play-controls form h4 { margin: 0 0 2px; }
+#minor-character-sheet .mc-play-controls label { margin: 0; }
+#minor-character-sheet .mc-play-controls .mc-actions { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+#minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) :is(input:not([type="checkbox"]), select) { min-height: 48px; }
+#minor-character-sheet .mc-play-settings .mc-role-note { margin: 8px 0 0; color: var(--mc-muted); font-size: 14px; }
+#minor-character-sheet .mc-play-settings .mc-triage { margin: 8px 0 12px; padding: 0 0 8px; border-bottom: 1px solid var(--mc-hairline); }
+#minor-character-sheet .mc-play-settings .mc-triage h4 { margin: 12px 0 0; }
+#minor-character-sheet .mc-play-settings .mc-triage-key-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 4px; }
+#minor-character-sheet .mc-play-settings [data-triage-status]:empty { display: none; }
+#minor-character-sheet [aria-label="Scene GM"] > h3 { display: none; }
+#minor-character-sheet [aria-label="Scene GM"] .mc-actions { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+#minor-character-sheet [aria-label="Scene GM"] [data-gm-request] { background: var(--mc-accent); color: var(--mc-panel); border-color: var(--mc-accent); }
+#minor-character-sheet .mc-scene-review article { margin: 16px 0; padding: 12px; border: 1px solid var(--mc-hairline); border-radius: 12px; }
+#minor-character-sheet .mc-scene-review :is(p, blockquote) { white-space: pre-wrap; }
+#minor-character-sheet .mc-scene-review blockquote { margin: 8px 0; padding-left: 12px; border-left: 2px solid var(--mc-hairline); font-family: var(--mc-serif); }
+#minor-character-sheet .mc-scene-review fieldset { min-width: 0; margin: 12px 0; border: 1px solid var(--mc-hairline); border-radius: var(--mc-radius); }
+#minor-character-sheet .mc-mythic-scene-end label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+#minor-character-sheet .mc-mythic { padding: 4px 0; }
+#minor-character-sheet .mc-mythic > h4 { display: none; }
+#minor-character-sheet .mc-scene-publication pre { white-space: pre-wrap; font: inherit; }
+#minor-character-sheet .mc-narration-memory fieldset { min-width: 0; border: 1px solid var(--mc-hairline); border-radius: 12px; padding: 4px 12px; }
+#minor-character-sheet .mc-narration-memory legend { padding: 0 4px; color: var(--mc-muted); font-size: 13px; }
+#minor-character-sheet .mc-narration-person { display: flex; align-items: center; gap: 12px; min-height: 44px; margin: 0; color: var(--mc-text); }
+
+/* Story: profiles and the cast directory */
+#minor-character-sheet .mc-profile article { margin: 16px 0; }
+#minor-character-sheet .mc-profile p { white-space: pre-wrap; }
+#minor-character-sheet .mc-profile blockquote { margin: 8px 0; padding-left: 12px; border-left: 2px solid var(--mc-hairline); white-space: pre-wrap; font-family: var(--mc-serif); }
+#minor-character-sheet [data-profile-history] ol { padding-left: 24px; }
+#minor-character-sheet [data-profile-event] { padding: 8px 0; border-bottom: 1px solid var(--mc-hairline); }
+#minor-character-sheet.mc-cast-destination .mc-sheet-body { display: block; container-type: inline-size; }
+#minor-character-sheet .mc-cast { padding-top: 12px; }
+#minor-character-sheet .mc-cast > section { min-width: 0; }
+#minor-character-sheet .mc-cast-person {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; margin: 0; padding: 8px 4px;
+  border: 0; border-bottom: 1px solid var(--mc-hairline); border-radius: 0; background: transparent; font-weight: 400;
+}
+#minor-character-sheet .mc-cast-person strong { display: block; }
+#minor-character-sheet .mc-cast-person[aria-pressed="true"] { box-shadow: inset 3px 0 var(--mc-accent); background: var(--mc-accent-soft); }
+#minor-character-sheet .mc-cast img { width: 48px; height: 48px; object-fit: cover; border-radius: 50%; }
+#minor-character-sheet .mc-cast input[type="search"] { display: block; width: 100%; }
+#minor-character-sheet .mc-cast[data-show-detail="true"] > [data-cast-list],
+#minor-character-sheet .mc-cast[data-show-detail="false"] > [data-cast-detail] { display: none; }
+#minor-character-sheet .mc-cast-commands { grid-column: 1 / -1; }
+@container (min-width: 720px) {
+  #minor-character-sheet .mc-cast { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr); gap: 24px; align-items: start; }
+  #minor-character-sheet .mc-cast[data-show-detail] > [data-cast-list],
+  #minor-character-sheet .mc-cast[data-show-detail] > [data-cast-detail] { display: block; }
+}
+
+/* Panel placement: docked beside the chat on a desktop, over it on a phone. */
 @media (min-width: 1024px) {
   #sheld.mc-sheet-open {
     width: min(100%, calc(var(--sheldWidth, 50vw) + 420px));
-    display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 420px); grid-template-rows: minmax(0, 1fr) auto auto;
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 420px); grid-template-rows: minmax(0, 1fr) auto auto;
   }
   #sheld.mc-sheet-open > #chat { grid-column: 1; grid-row: 1; min-width: 0; min-height: 0; max-height: none; }
   #sheld.mc-sheet-open > #minor-character-actions { grid-column: 1; grid-row: 2; min-width: 0; }
@@ -95,230 +343,189 @@
   #sheld.mc-sheet-open > #minor-character-sheet { grid-column: 2; grid-row: 1 / -1; }
 }
 @media (max-width: 1023px) {
-  #sheld.mc-sheet-open > #minor-character-sheet { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #sheld.mc-sheet-open > #minor-character-sheet { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
   #sheld.mc-sheet-open > #chat, #sheld.mc-sheet-open > #minor-character-actions, #sheld.mc-sheet-open > #form_sheld { visibility: hidden; }
+  #minor-character-sheet [data-fullscreen] { display: none; }
 }
-#minor-character-sheet section { border-bottom: 1px solid var(--mc-border); padding: 12px 0; }
-#minor-character-sheet p, #minor-character-sheet li { line-height: 1.5; }
-#minor-character-sheet h3, #minor-character-sheet h4 { margin: 8px 0; }
-#minor-character-sheet small { display: block; line-height: 1.5; }
-#minor-character-sheet h3 { background: color-mix(in srgb, var(--mc-accent) 14%, var(--mc-panel)); color: var(--mc-text); padding: 7px 10px; text-transform: uppercase; letter-spacing: .04em; }
-#minor-character-sheet .mc-boxes { display: flex; gap: 8px; margin: 10px 0; }
-#minor-character-sheet .mc-pip { display: inline-flex; position: relative; align-items: center; justify-content: center; width: 22px; height: 22px; border: 2px solid currentColor; border-radius: 50%; font-weight: bold; }
-#minor-character-sheet .mc-pip + .mc-pip::before { content: ''; position: absolute; right: 22px; width: 8px; height: 2px; background: currentColor; }
-#minor-character-sheet .mc-burned { border-radius: 3px; }
-#minor-character-sheet .mc-ranks { white-space: nowrap; letter-spacing: .2em; font-size: 1.15em; }
-#minor-character-sheet dt { font-weight: bold; text-transform: capitalize; margin-top: 8px; }
-#minor-character-sheet dd { margin: 4px 0; }
-#minor-character-sheet * { overflow-wrap: anywhere; }
-@media (max-width: 600px) {
-  :is(#minor-character-launch, #minor-character-cast-launch) { position: static; display: block; width: max-content; margin: 4px 8px 4px auto; }
-  #minor-character-sheet { width: 100%; border-radius: 0; }
-  #minor-character-sheet .mc-content { padding: 0 14px 24px; }
-}
-/* Inline action card, mobile first: one header line between transcript and composer; expanded states scroll inside. */
-#minor-character-actions {
-  flex: 0 0 auto; margin: 2px 4px; padding: 0 10px; border: 1px solid var(--mc-border); border-radius: 12px;
-  overflow-wrap: anywhere; min-width: 0; box-sizing: border-box; max-height: 25dvh; overflow: auto; overscroll-behavior: contain;
-}
-#minor-character-actions.mc-card-expanded { max-height: 50dvh; padding: 4px 12px 12px; }
-#minor-character-actions .mc-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; }
-#minor-character-actions .mc-card-summary { margin: 0; flex: 1 1 auto; min-width: 0; font-size: .9375em; line-height: 1.3; }
-#minor-character-actions:not(.mc-card-expanded) .mc-card-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#minor-character-actions .mc-card-header button { width: auto; flex: 0 0 auto; padding: 8px 14px; border-radius: 999px; }
-#minor-character-actions .mc-card-status { margin: 4px 0 8px; }
-#minor-character-actions .mc-card-status:empty { display: none; }
-#minor-character-actions .mc-actions { display: grid; gap: 8px; margin: 10px 0; }
-#minor-character-actions .mc-actions button { min-height: 48px; }
-#minor-character-actions .mc-flow-secondary { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--mc-border); }
-#minor-character-actions .mc-flow-secondary button { min-height: 44px; opacity: .85; }
-#minor-character-actions .mc-proposal .mc-actions button:first-child { background: color-mix(in srgb, var(--mc-accent) 24%, var(--mc-panel)); font-weight: 600; }
-#minor-character-actions article { padding: 8px 0; border-bottom: 1px solid var(--mc-border); }
-#minor-character-actions article.mc-proposal {
-  margin: 8px 0; padding: 10px; border: 1px solid var(--mc-border); border-left: 3px solid var(--mc-gold); border-radius: 6px; background: var(--mc-raised);
-}
-#minor-character-actions .mc-proposal h4 { margin: 0 0 6px; }
-#minor-character-actions .mc-proposal > p { margin: 4px 0; }
-#minor-character-actions .mc-proposal-stakes-line { font-weight: 600; }
-#minor-character-actions .mc-proposal details { margin-top: 6px; }
-#minor-character-actions .mc-proposal ul { margin: 6px 0; padding-left: 20px; }
-#minor-character-actions .mc-pending-stakes { margin-top: 10px; }
-/* Who read the message: one muted line in the expanded details only, never on the collapsed card. */
-#minor-character-actions .mc-triage-reading { margin: 2px 0 6px; font-size: .875em; line-height: 1.4; opacity: .7; }
-#minor-character-actions form { display: grid; gap: 10px; min-width: 0; }
-#minor-character-actions label { display: grid; gap: 4px; min-width: 0; }
-#minor-character-actions fieldset { min-width: 0; max-width: 100%; box-sizing: border-box; }
-#minor-character-actions input, #minor-character-actions select, #minor-character-actions button { min-height: 44px; width: 100%; max-width: 100%; box-sizing: border-box; font-size: 16px; }
-#minor-character-actions summary { cursor: pointer; min-height: 44px; padding-top: 10px; }
-#minor-character-actions h4 { margin: 8px 0 2px; }
-@media (min-width: 600px) {
-  #minor-character-actions { margin: 4px 8px; padding: 0 14px; }
-  #minor-character-actions.mc-card-expanded { padding: 6px 16px 14px; }
-  #minor-character-actions .mc-actions { grid-template-columns: repeat(auto-fit, minmax(160px, max-content)); }
-  #minor-character-actions form.mc-action-declaration, #minor-character-actions form.mc-stakes-adjudication,
-  #minor-character-actions form.mc-proposal-stakes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  #minor-character-actions form.mc-action-declaration > :is(h4, p, button, label:first-of-type),
-  #minor-character-actions form.mc-stakes-adjudication > :is(h4, button, label:first-of-type),
-  #minor-character-actions form.mc-proposal-stakes > :is(button, label:first-of-type) { grid-column: 1 / -1; }
-}
-
-#minor-character-sheet .mc-play-controls { min-width: 0; }
-#minor-character-sheet .mc-play-controls details { margin: 8px 0; border-top: 1px solid var(--mc-border); padding-top: 4px; min-width: 0; }
-#minor-character-sheet .mc-play-controls summary { cursor: pointer; min-height: 44px; padding: 10px 0; box-sizing: border-box; font-weight: 600; }
-#minor-character-sheet .mc-play-controls form, #minor-character-sheet .mc-play-controls label:not(.mc-checkbox) { display: grid; gap: 8px; min-width: 0; }
-#minor-character-sheet .mc-play-controls form { gap: 12px; margin: 12px 0; padding: 10px; border: 1px solid var(--mc-border); border-radius: 6px; background: var(--mc-raised); }
-#minor-character-sheet .mc-play-controls :is(input:not([type="checkbox"]), select, textarea, button) { min-height: 44px; width: 100%; max-width: 100%; box-sizing: border-box; }
-#minor-character-sheet .mc-play-controls .mc-actions button { width: auto; }
-#minor-character-sheet .mc-play-controls .mc-checkbox { display: flex; align-items: center; min-height: 44px; gap: 12px; }
-#minor-character-sheet .mc-play-controls .mc-checkbox input { width: 22px; height: 22px; min-width: 22px; min-height: 22px; flex: 0 0 22px; accent-color: var(--mc-accent); }
-
-/* Play settings and Scene GM: one stacked column with 48px rows; two columns only on wide sheets. */
-#minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) { min-width: 0; }
-#minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) label:not(.mc-checkbox) { display: grid; gap: 4px; margin: 8px 0; }
-#minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) :is(input:not([type="checkbox"]), select) { width: 100%; min-height: 48px; box-sizing: border-box; font-size: 16px; }
-#minor-character-sheet .mc-play-settings .mc-checkbox { display: flex; align-items: center; gap: 12px; min-height: 48px; margin: 4px 0; }
-#minor-character-sheet .mc-play-settings .mc-role-note { margin: 8px 0 0; opacity: .8; font-size: .9375em; }
-#minor-character-sheet .mc-play-settings .mc-checkbox input { width: 24px; height: 24px; min-width: 24px; min-height: 24px; flex: 0 0 24px; accent-color: var(--mc-accent); }
-#minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) .mc-actions { display: grid; gap: 8px; margin: 8px 0; }
-#minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) .mc-actions button { min-height: 48px; width: 100%; }
-/* Triage (Jev): the key field with Show and Clear as two equal buttons under it; everything full width on a phone. */
-#minor-character-sheet .mc-play-settings .mc-triage { min-width: 0; margin: 8px 0 12px; padding: 0 0 8px; border-bottom: 1px solid var(--mc-border); }
-#minor-character-sheet .mc-play-settings .mc-triage h4 { margin: 8px 0 0; font-size: 1em; }
-#minor-character-sheet .mc-play-settings .mc-triage .mc-role-note { margin: 0 0 8px; }
-#minor-character-sheet .mc-play-settings .mc-triage-key-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 4px; }
-#minor-character-sheet .mc-play-settings .mc-triage-key-actions button { min-height: 48px; width: 100%; min-width: 0; }
-#minor-character-sheet .mc-play-settings [data-triage-status]:empty { display: none; }
-@media (min-width: 600px) {
-  #minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) .mc-actions { grid-template-columns: repeat(auto-fit, minmax(160px, max-content)); }
-  #minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) .mc-actions button { width: auto; }
-  #minor-character-sheet .mc-play-settings .mc-triage-key-actions { grid-template-columns: repeat(2, minmax(120px, max-content)); }
-  #minor-character-sheet .mc-play-settings .mc-triage-key-actions button { width: auto; }
-}
-
-#minor-character-sheet .mc-corrections form, #minor-character-sheet .mc-corrections label { display: grid; gap: 8px; }
-#minor-character-sheet .mc-corrections form { gap: 12px; }
-#minor-character-sheet .mc-corrections input, #minor-character-sheet .mc-corrections select, #minor-character-sheet .mc-corrections textarea { min-height: 44px; width: 100%; box-sizing: border-box; }
-#minor-character-sheet .mc-corrections label[hidden] { display: none; }
-#minor-character-sheet .mc-corrections summary { cursor: pointer; min-height: 44px; padding-top: 10px; }
-
-#minor-character-sheet .mc-edge-list { display: flex; flex-wrap: wrap; gap: 8px 16px; list-style: none; padding: 0; }
-#minor-character-sheet .mc-capability-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-#minor-character-sheet .mc-capability-table caption { text-align: left; margin: 8px 0; }
-#minor-character-sheet .mc-capability-table th, #minor-character-sheet .mc-capability-table td { text-align: left; padding: 8px 4px; border-bottom: 1px solid var(--mc-border); vertical-align: top; }
-#minor-character-sheet .mc-capability-table th:first-child { width: 32%; }
-#minor-character-sheet .mc-capability-table thead th:nth-child(3) { width: 30%; }
-#minor-character-sheet .mc-capability-table td { font-variant-numeric: tabular-nums; }
-#minor-character-sheet .mc-stored-competence summary { cursor: pointer; min-height: 44px; padding-top: 12px; box-sizing: border-box; }
-#minor-character-sheet .mc-campaign-track { margin: 16px 0; }
-#minor-character-sheet .mc-campaign-track .mc-boxes { flex-wrap: wrap; }
-#minor-character-sheet .mc-campaign-track .mc-pip { flex-shrink: 0; }
-@media (max-width: 600px) {
-  #minor-character-sheet .mc-capability-table thead th { font-size: .75em; }
-}
-
-#minor-character-sheet .mc-aspects article { margin: 16px 0; }
-#minor-character-sheet .mc-aspects article > p { white-space: pre-line; }
-#minor-character-sheet .mc-aspects .mc-boxes { flex-wrap: wrap; }
-#minor-character-sheet .mc-aspects .mc-pip { flex-shrink: 0; }
-#minor-character-sheet .mc-aspects summary { cursor: pointer; min-height: 44px; padding: 12px 0; box-sizing: border-box; }
-#minor-character-sheet .mc-aspects summary:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-
-#minor-character-sheet .mc-life article, #minor-character-sheet .mc-campaign-details article { margin: 16px 0; }
-#minor-character-sheet .mc-life .mc-boxes { flex-wrap: wrap; }
-#minor-character-sheet .mc-life .mc-pip { flex-shrink: 0; }
-#minor-character-sheet .mc-campaign-details summary, #minor-character-sheet [data-mechanical-history] summary { cursor: pointer; min-height: 44px; padding: 12px 0; box-sizing: border-box; }
-#minor-character-sheet .mc-campaign-details summary:focus-visible, #minor-character-sheet [data-mechanical-history] summary:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-
-#minor-character-sheet .mc-field-editor { min-width: 0; margin: 8px 0; }
-#minor-character-sheet .mc-field-editor label { display: grid; gap: 4px; text-transform: capitalize; }
-#minor-character-sheet .mc-field-editor input, #minor-character-sheet .mc-field-editor select, #minor-character-sheet .mc-field-editor textarea { width: 100%; min-height: 44px; box-sizing: border-box; font: inherit; }
-#minor-character-sheet .mc-field-editor textarea { resize: vertical; }
-#minor-character-sheet .mc-field-editor .mc-field-absent { display: flex; align-items: center; gap: 8px; }
-#minor-character-sheet .mc-field-absent input { width: 44px; }
-#minor-character-sheet .mc-track-editor { min-width: 44px; min-height: 44px; }
-#minor-character-sheet .mc-boxes[role="group"] { flex-wrap: wrap; }
-#minor-character-sheet .mc-field-editor :focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-
-#minor-character-sheet .mc-agent-notice { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--mc-border); border-left-width: 4px; line-height: 1.5; }
-#minor-character-sheet .mc-edit-bar {
-  padding: 12px; border: 1px solid var(--mc-border); border-radius: 6px;
-  background: var(--mc-raised); color: var(--mc-text);
-}
-#minor-character-sheet .mc-edit-bar:has(textarea[required]) {
-  border-color: var(--mc-gold); border-left-width: 4px;
-  background: color-mix(in srgb, var(--mc-gold) 8%, var(--mc-panel));
-}
-#minor-character-sheet .mc-edit-bar > button { min-height: 44px; margin: 4px; }
-#minor-character-sheet .mc-edit-bar > label { display: grid; gap: 6px; }
-#minor-character-sheet .mc-edit-bar > label textarea { min-height: 44px; }
-#minor-character-sheet .mc-edit-bar > details { margin-top: 12px; }
-#minor-character-sheet .mc-edit-bar summary { min-height: 44px; cursor: pointer; }
-
-#minor-character-fullscreen {
-  inset: 0; margin: 0; padding: 0; border: 0; width: 100%; height: 100dvh;
-  max-width: none; max-height: none; background: transparent;
-}
+@media (max-width: 600px) { #minor-character-sheet .mc-content { padding: 0 14px 24px; } }
+#minor-character-fullscreen { inset: 0; margin: 0; padding: 0; border: 0; width: 100%; height: 100dvh; max-width: none; max-height: none; background: transparent; }
 #minor-character-fullscreen::backdrop { background: #0009; }
 #minor-character-fullscreen > #minor-character-sheet { width: 100%; height: 100%; }
 @media (min-width: 1024px) {
-  #minor-character-sheet.mc-fullscreen .mc-sheet-body {
-    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 24px;
-    align-items: start;
-  }
-  #minor-character-sheet.mc-fullscreen [data-sheet-tab="background-history"],
-  #minor-character-sheet.mc-fullscreen .mc-edit-bar,
-  #minor-character-sheet.mc-fullscreen .mc-identity { grid-column: 1 / -1; }
+  #minor-character-sheet.mc-fullscreen .mc-sheet-body { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 28px; align-items: start; }
+  #minor-character-sheet.mc-fullscreen :is([data-sheet-tab="background-history"], .mc-edit-bar, .mc-edit-footer, .mc-identity, .mc-campaign, .mc-play-settings, .mc-settings-file, .mc-cast) { grid-column: 1 / -1; }
 }
 
-#minor-character-sheet .mc-scene-review { grid-column: 1 / -1; min-width: 0; }
-#minor-character-sheet .mc-scene-review article { margin: 16px 0; padding: 12px; border: 1px solid var(--mc-border); }
-#minor-character-sheet .mc-scene-review p, #minor-character-sheet .mc-scene-review blockquote { white-space: pre-wrap; overflow-wrap: anywhere; }
-#minor-character-sheet .mc-scene-review blockquote { margin: 8px 0; padding-left: 12px; border-left: 2px solid var(--mc-border); }
-#minor-character-sheet .mc-scene-review summary { min-height: 44px; padding: 12px 0; box-sizing: border-box; cursor: pointer; }
-#minor-character-sheet .mc-scene-review :focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+/* ---------- The play card, between the transcript and the composer ---------- */
+#minor-character-actions {
+  flex: 0 0 auto; margin: 2px 6px 6px; padding: 0 6px 0 12px; border: 1px solid var(--mc-hairline); border-radius: 14px;
+  min-width: 0; max-height: 25dvh; overflow: auto; overscroll-behavior: contain; position: relative; z-index: 2;
+}
+#minor-character-actions.mc-card-expanded { max-height: 55dvh; padding: 6px 14px 14px; }
+#minor-character-actions.mc-card-modal { max-height: 74dvh; border-radius: 18px; border-color: var(--mc-control-border); box-shadow: 0 -12px 40px #0008; }
+@media (max-width: 1023px) {
+  #sheld.mc-card-modal:not(.mc-sheet-open) > #chat { opacity: .32; filter: blur(2px); transition: opacity .2s ease-out, filter .2s ease-out; }
+}
+@media (prefers-reduced-motion: reduce) { #sheld.mc-card-modal > #chat { transition: none; } }
+#minor-character-actions .mc-card-header { display: flex; align-items: center; gap: 10px; min-height: 52px; }
+#minor-character-actions .mc-card-dot { width: 10px; height: 10px; flex: 0 0 10px; border-radius: 50%; background: var(--mc-control-border); }
+#minor-character-actions .mc-tone-triumph { background: var(--mc-triumph); }
+#minor-character-actions :is(.mc-tone-conflict, .mc-tone-waiting) { background: var(--mc-gold); }
+#minor-character-actions .mc-tone-disaster { background: var(--mc-disaster); }
+#minor-character-actions .mc-card-lines { flex: 1; min-width: 0; }
+#minor-character-actions .mc-card-summary { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.3; }
+#minor-character-actions:not(.mc-card-expanded) .mc-card-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#minor-character-actions .mc-card-standing { margin: 1px 0 0; font-size: 12px; color: var(--mc-muted); }
+#minor-character-actions.mc-card-modal .mc-card-standing { display: none; }
+#minor-character-actions .mc-card-toggle { border-radius: 999px; padding: 6px 16px; }
+#minor-character-actions .mc-card-status { margin: 2px 0 8px; font-size: 14px; }
+#minor-character-actions .mc-card-status:empty { display: none; }
+#minor-character-actions .mc-actions button { min-height: 48px; }
+#minor-character-actions .mc-flow-secondary { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--mc-hairline); }
+#minor-character-actions .mc-flow-choices > button:first-child { background: var(--mc-accent); color: var(--mc-panel); border-color: var(--mc-accent); }
+#minor-character-actions .mc-triage-reading { margin: 2px 0 6px; font-size: 13px; color: var(--mc-muted); }
+#minor-character-actions form { display: grid; gap: 10px; min-width: 0; }
+#minor-character-actions fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+#minor-character-actions legend { padding: 0; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: var(--mc-muted); }
+#minor-character-actions h4 { margin: 8px 0 4px; font-size: 15px; }
+#minor-character-actions h5 { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--mc-muted); }
+#minor-character-actions .mc-eyebrow { margin: 0; font-size: 13px; font-weight: 600; color: var(--mc-gold-text); }
+#minor-character-actions .mc-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
 
-#minor-character-sheet .mc-scene-review fieldset { min-width: 0; margin: 12px 0; border: 1px solid var(--mc-border); }
-#minor-character-sheet .mc-mythic-scene-end label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
-#minor-character-sheet .mc-mythic-scene-end input { width: 22px; height: 22px; margin: 0; }
-#minor-character-sheet .mc-mythic { border: 0; padding: 8px 0; }
-#minor-character-sheet .mc-mythic button { min-height: 44px; margin: 4px 0; }
-#minor-character-sheet .mc-scene-review label { display: grid; gap: 4px; margin: 8px 0; }
-#minor-character-sheet .mc-scene-review textarea, #minor-character-sheet .mc-scene-review select { width: 100%; min-height: 44px; box-sizing: border-box; font: inherit; }
-#minor-character-sheet .mc-scene-review button { min-height: 44px; }
+/* Dice */
+#minor-character-actions .mc-dice-meter { display: inline-flex; gap: 5px; flex-shrink: 0; }
+#minor-character-actions .mc-die { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--mc-accent); background: var(--mc-accent-soft); }
+#minor-character-actions .mc-die-cut { border-style: dashed; border-color: var(--mc-gold); background: transparent; }
+#minor-character-actions .mc-die-fallback { border-style: dashed; border-color: var(--mc-muted); background: transparent; }
+#minor-character-actions .mc-meter-line { display: flex; align-items: center; gap: 12px; }
+#minor-character-actions .mc-meter-text { display: grid; line-height: 1.3; font-size: 13px; color: var(--mc-muted); }
+#minor-character-actions .mc-meter-text strong { color: var(--mc-text); font-size: 14px; }
+#minor-character-actions .mc-dice-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin: 10px 0; }
+#minor-character-actions .mc-die-cell { display: grid; justify-items: center; gap: 3px; }
+#minor-character-actions .mc-die-cell small { font-size: 11px; color: var(--mc-muted); min-height: 1.2em; }
+#minor-character-actions .mc-die-face {
+  width: 46px; height: 46px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 800; border: 2px solid var(--mc-control-border); background: var(--mc-raised);
+}
+#minor-character-actions .mc-die-face.mc-die-cut { border-style: dashed; color: var(--mc-muted); text-decoration: line-through; background: transparent; }
+#minor-character-actions .mc-die-face.mc-die-highest { border-color: var(--mc-gold); color: var(--mc-gold-text); background: var(--mc-gold-soft); }
+#minor-character-actions .mc-die-face.mc-die-pair { border-color: var(--mc-twist); color: var(--mc-twist); background: var(--mc-twist-soft); }
+#minor-character-actions .mc-die-face.mc-die-plain { color: var(--mc-muted); }
 
-#minor-character-sheet .mc-scene-publication { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; }
+/* Proposal */
+#minor-character-actions article.mc-proposal { display: grid; gap: 12px; margin: 4px 0 8px; }
+#minor-character-actions .mc-proposal-title { margin: -4px 0 0; font: 600 20px/1.3 var(--mc-serif); }
+#minor-character-actions :is(.mc-dice-preview) { display: grid; gap: 10px; padding: 12px; border-radius: 12px; background: var(--mc-raised); }
+#minor-character-actions .mc-proposal-stakes-line { display: grid; gap: 6px; }
+#minor-character-actions .mc-proposal-stakes-line > p { margin: 0; }
+#minor-character-actions .mc-harm-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; font-size: 13px; }
+#minor-character-actions .mc-harm-grid > div { display: grid; padding: 8px 10px; border-radius: var(--mc-radius); border: 1px solid var(--mc-hairline); }
+#minor-character-actions .mc-proposal-reasons { margin: 0; padding-left: 18px; color: var(--mc-muted); font-size: 13px; }
+#minor-character-actions .mc-proposal .mc-actions { margin: 0; }
+#minor-character-actions .mc-actions-secondary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#minor-character-actions .mc-actions-secondary button:last-child { background: transparent; }
+#minor-character-actions .mc-change-stakes > summary { display: none; }
+#minor-character-actions .mc-change-stakes[open] { padding: 12px; border-radius: 12px; border: 1px solid var(--mc-hairline); }
+#minor-character-actions :is(.mc-proposal-mechanics, .mc-stakes-fallback, .mc-twist-more, details:not([class])) > summary { font-size: 14px; color: var(--mc-muted); font-weight: 500; }
+#minor-character-actions .mc-proposal-mechanics { border-top: 1px solid var(--mc-hairline); }
+#minor-character-actions .mc-proposal-mechanics p { font-size: 13px; color: var(--mc-muted); }
+#minor-character-actions .mc-proposal-cancel { padding: 10px 12px; border-radius: 12px; background: var(--mc-raised); }
+#minor-character-actions .mc-outcome-triumph { color: var(--mc-triumph); }
+#minor-character-actions .mc-outcome-conflict { color: var(--mc-conflict); }
+#minor-character-actions .mc-outcome-disaster { color: var(--mc-disaster); }
 
-#minor-character-sheet .mc-profile article { margin: 16px 0; }
-#minor-character-sheet .mc-profile p { white-space: pre-wrap; overflow-wrap: anywhere; }
-#minor-character-sheet .mc-profile summary { min-height: 44px; padding: 12px 0; box-sizing: border-box; cursor: pointer; overflow-wrap: anywhere; }
-#minor-character-sheet .mc-profile blockquote { margin: 8px 0; padding-left: 12px; border-left: 2px solid var(--mc-border); white-space: pre-wrap; overflow-wrap: anywhere; }
-#minor-character-sheet [data-profile-history] ol { padding-left: 24px; }
-#minor-character-sheet [data-profile-event] { padding: 8px 0; border-bottom: 1px solid var(--mc-border); }
+/* Receipt and what follows from it */
+#minor-character-actions article.mc-receipt { padding: 8px 0 4px; border-bottom: 1px solid var(--mc-hairline); }
+#minor-character-actions article.mc-receipt:last-of-type { border-bottom: 0; }
+#minor-character-actions .mc-receipt-head { display: flex; justify-content: space-between; gap: 8px; margin: 0; font-size: 13px; color: var(--mc-muted); }
+#minor-character-actions .mc-outcome { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+#minor-character-actions .mc-outcome h4 { margin: 0; font: 600 28px/1.1 var(--mc-serif); }
+#minor-character-actions .mc-outcome-meaning { font-size: 14px; color: var(--mc-muted); }
+#minor-character-actions .mc-receipt details p, #minor-character-actions .mc-record-ids { font-size: 13px; color: var(--mc-muted); }
+#minor-character-actions .mc-harm-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--mc-raised); }
+#minor-character-actions .mc-harm-line p { margin: 0; font-weight: 600; font-size: 14px; }
+#minor-character-actions .mc-pending-stakes { display: grid; gap: 10px; margin-top: 8px; }
+#minor-character-actions .mc-stakes-cost { display: grid; gap: 8px; }
+#minor-character-actions .mc-stakes-cost label { margin: 0; }
+#minor-character-actions .mc-twist-box { display: grid; gap: 8px; padding: 12px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--mc-twist) 45%, var(--mc-panel)); background: var(--mc-twist-soft); }
+#minor-character-actions .mc-twist-box h4 { margin: 0; color: var(--mc-twist); font-size: 14px; }
+#minor-character-actions .mc-twist-box label { margin: 0; }
+#minor-character-actions .mc-twist-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+#minor-character-actions .mc-twist-choices > :last-child { grid-column: 1 / -1; border-style: dashed; background: transparent; }
+#minor-character-actions .mc-twist-primary { border-color: var(--mc-twist); background: color-mix(in srgb, var(--mc-twist) 32%, var(--mc-panel)); color: var(--mc-text); }
+#minor-character-actions .mc-twist-more { display: grid; gap: 6px; }
+#minor-character-actions .mc-banked-twists form { padding: 10px 12px; border-radius: 12px; border: 1px dashed var(--mc-twist); }
 
-#minor-character-sheet.mc-cast-destination .mc-sheet-body { display: block; }
-#minor-character-sheet .mc-cast-person { display: block; width: 100%; text-align: left; margin: 8px 0; }
-#minor-character-sheet .mc-cast-person strong { display: block; }
+/* Declaration: chips, segmented Cuts, toggles, and a live dice count above Roll */
+#minor-character-actions .mc-declare-body { display: grid; gap: 18px; }
+#minor-character-actions .mc-declare-cuts { display: grid; gap: 14px; padding-top: 14px; border-top: 1px solid var(--mc-hairline); }
+#minor-character-actions .mc-declare-cuts > h4 { margin: 0; }
+#minor-character-actions .mc-choice-options { display: flex; flex-wrap: wrap; gap: 8px; }
+#minor-character-actions .mc-choice-option {
+  position: relative; margin: 0; display: flex; flex-direction: column; justify-content: center; gap: 0;
+  min-height: 44px; padding: 6px 14px; border-radius: var(--mc-radius); border: 2px solid var(--mc-hairline);
+  background: var(--mc-raised); color: var(--mc-text); cursor: pointer; line-height: 1.2; font-size: 14px;
+}
+#minor-character-actions .mc-choice-option input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+#minor-character-actions .mc-choice-label { font-weight: 600; }
+#minor-character-actions .mc-choice-hint { font-size: 12px; color: var(--mc-muted); }
+#minor-character-actions .mc-choice-option:has(input:checked) { border-color: var(--mc-accent); background: var(--mc-accent-soft); }
+#minor-character-actions .mc-choice-option:has(input:focus-visible) { outline: 2px solid var(--mc-accent); outline-offset: 2px; }
+#minor-character-actions .mc-chips[data-choice="skill"] .mc-choice-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#minor-character-actions .mc-choice-untrained { display: none; }
+#minor-character-actions .mc-show-untrained .mc-choice-untrained { display: flex; }
+#minor-character-actions .mc-segmented .mc-choice-options {
+  display: grid; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; gap: 0;
+  border: 1px solid var(--mc-control-border); border-radius: var(--mc-radius); overflow: hidden;
+}
+#minor-character-actions .mc-segmented .mc-choice-option { border: 0; border-radius: 0; align-items: center; text-align: center; min-height: 50px; padding: 4px 6px; }
+#minor-character-actions .mc-segmented .mc-choice-option + .mc-choice-option { border-left: 1px solid var(--mc-hairline); }
+#minor-character-actions .mc-segmented .mc-choice-option:has(input:checked) { background: var(--mc-accent); color: var(--mc-panel); }
+#minor-character-actions .mc-segmented .mc-choice-option:has(input:checked) .mc-choice-hint { color: inherit; opacity: .85; }
+#minor-character-actions .mc-advantages { display: grid; gap: 6px; }
+#minor-character-actions .mc-advantages label { margin: 0; }
+#minor-character-actions .mc-toggles { display: grid; gap: 6px; }
+#minor-character-actions .mc-toggles > p { margin: 0; font-size: 13px; color: var(--mc-muted); }
+#minor-character-actions .mc-toggle {
+  display: flex; align-items: center; gap: 12px; margin: 0; min-height: 48px; padding: 6px 12px; border-radius: var(--mc-radius);
+  background: var(--mc-raised); border: 1px solid var(--mc-hairline); color: var(--mc-text); cursor: pointer;
+}
+#minor-character-actions .mc-toggle input { accent-color: var(--mc-gold); }
+#minor-character-actions .mc-toggle-label { flex: 1; min-width: 0; font-size: 14px; }
+#minor-character-actions .mc-toggle-hint { font-size: 12px; color: var(--mc-gold-text); white-space: nowrap; }
+#minor-character-actions .mc-toggle:has(input:checked) { border-color: var(--mc-gold); }
+#minor-character-actions .mc-declare-battery { border-top: 1px solid var(--mc-hairline); }
+#minor-character-actions .mc-declare-footer {
+  position: sticky; bottom: -14px; z-index: 2; display: grid; gap: 10px; margin: 6px -14px -14px; padding: 12px 14px 14px;
+  background: var(--mc-panel); border-top: 1px solid var(--mc-control-border);
+}
+#minor-character-actions .mc-permission { margin: 0; padding: 10px 12px; border-radius: var(--mc-radius); border: 1px solid var(--mc-gold); background: var(--mc-gold-soft); color: var(--mc-gold-text); font-weight: 600; }
+#minor-character-actions .mc-declare-footer [data-roll] { font-size: 16px; }
 
-#minor-character-sheet.mc-cast-destination .mc-sheet-body { container-type: inline-size; }
-#minor-character-sheet .mc-cast > section { min-width: 0; }
-#minor-character-sheet .mc-cast label { display: block; margin: 8px 0; }
-#minor-character-sheet .mc-cast input[type="search"] { display: block; width: 100%; }
-#minor-character-sheet .mc-cast input[type="checkbox"] { min-width: 24px; min-height: 24px; vertical-align: middle; margin-right: 8px; }
-#minor-character-sheet .mc-cast img { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; }
-#minor-character-sheet .mc-cast-person[aria-pressed="true"] { outline: 2px solid var(--mc-accent); outline-offset: -2px; }
-#minor-character-sheet .mc-cast[data-show-detail="true"] > [data-cast-list],
-#minor-character-sheet .mc-cast[data-show-detail="false"] > [data-cast-detail] { display: none; }
-@container (min-width: 720px) {
-  #minor-character-sheet .mc-cast { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr); gap: 24px; align-items: start; }
-  #minor-character-sheet .mc-cast[data-show-detail] > [data-cast-list],
-  #minor-character-sheet .mc-cast[data-show-detail] > [data-cast-detail] { display: block; }
+@media (min-width: 600px) {
+  #minor-character-actions { margin: 4px 8px 8px; }
+  #minor-character-actions .mc-proposal .mc-actions { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: stretch; }
+  #minor-character-actions .mc-twist-choices { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #minor-character-actions .mc-chips[data-choice="skill"] .mc-choice-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-#minor-character-sheet .mc-cast-commands { grid-column: 1 / -1; }
+@media (forced-colors: active) {
+  #minor-character-sheet [role="tab"][aria-selected="true"], #minor-character-sheet .mc-destinations [aria-current="page"] { text-decoration: underline; }
+  :is(#minor-character-sheet, #minor-character-actions) :is(.mc-pip, .mc-die, .mc-die-face, .mc-track-editor::before) { forced-color-adjust: none; }
+  #minor-character-actions .mc-choice-option:has(input:checked) { outline: 2px solid Highlight; }
+  #minor-character-sheet .mc-element-pill { border-color: CanvasText; }
+}
 
-#minor-character-sheet .mc-scene-publication pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
-#minor-character-sheet .mc-scene-publication summary { min-height: 44px; box-sizing: border-box; padding-block: 10px; cursor: pointer; }
-
-#minor-character-sheet .mc-narration-person { display: flex; align-items: center; gap: 12px; min-height: 44px; overflow-wrap: anywhere; }
-#minor-character-sheet .mc-narration-memory fieldset { min-width: 0; border: 1px solid var(--mc-border); }
-#minor-character-sheet .mc-narration-person input { width: 20px; height: 20px; min-width: 0; min-height: 0; flex: 0 0 20px; accent-color: var(--mc-accent); }
+/* Disclosures: a drawn chevron, since flex summaries lose the browser's marker. */
+:is(#minor-character-sheet, #minor-character-actions) summary { list-style: none; }
+:is(#minor-character-sheet, #minor-character-actions) summary::-webkit-details-marker { display: none; }
+:is(#minor-character-sheet, #minor-character-actions) summary::before {
+  content: ''; flex: 0 0 auto; width: 7px; height: 7px; margin: 0 4px 0 2px; border: solid currentColor; border-width: 0 2px 2px 0;
+  transform: rotate(-45deg); transition: transform .12s ease-out; opacity: .8;
+}
+:is(#minor-character-sheet, #minor-character-actions) details[open] > summary::before { transform: rotate(45deg); }
+@media (prefers-reduced-motion: reduce) { :is(#minor-character-sheet, #minor-character-actions) summary::before { transition: none; } }
+/* While a proposal is up, its own eyebrow and title say what the header line would. */
+#minor-character-actions.mc-card-modal:has(article.mc-proposal) > .mc-card-header { display: none; }
+#minor-character-actions.mc-card-modal:has(article.mc-proposal) { padding-top: 14px; }
+#minor-character-sheet .mc-edit-footer textarea { font-weight: 400; }

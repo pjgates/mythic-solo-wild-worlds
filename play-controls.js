@@ -12,7 +12,7 @@ const button = (label) => {
     node.textContent = label;
     return node;
 };
-export function renderPlayControls(root, controller, capture, ready, checkpointTools) {
+export function renderPlayControls(root, controller, capture, ready, checkpointTools, group) {
     const view = controller.playerView;
     if (!view)
         return;
@@ -41,7 +41,12 @@ export function renderPlayControls(root, controller, capture, ready, checkpointT
         confirmation.replaceChildren(text('p', message), accept, cancel);
         accept.focus();
     }
-    section.append(text('h3', 'Play controls'), text('h4', 'Manifested element'), text('p', `Current manifestation: ${view.play.manifestedElement ?? 'Not yet chosen'}. All seven elements are free to select.`));
+    if (group && group !== 'class') {
+        renderMilestoneControls(section, controller, capture, ready, checkpointTools, group);
+        root.prepend(section);
+        return;
+    }
+    section.append(text('h4', 'Manifested element'), text('p', `Current manifestation: ${view.play.manifestedElement ?? 'Not yet chosen'}. All seven elements are free to select.`));
     const elements = document.createElement('div');
     elements.className = 'mc-actions';
     for (const element of ELEMENTS) {
@@ -79,7 +84,8 @@ export function renderPlayControls(root, controller, capture, ready, checkpointT
     section.append(text('h4', `Scene ${view.play.scene.number}`), text('p', `${view.play.switchesThisScene} class switches this scene. Next switch: ${cost} Fatigue.`));
     if (view.pendingManual)
         section.append(text('p', 'Finish the pending manual adjudication before switching class or ending the scene.'));
-    renderMilestoneControls(section, controller, capture, ready, checkpointTools);
+    if (!group)
+        renderMilestoneControls(section, controller, capture, ready, checkpointTools);
     section.append(confirmation, status);
     root.prepend(section);
 }

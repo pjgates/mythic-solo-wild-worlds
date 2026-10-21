@@ -29,6 +29,7 @@ import { SceneSession } from "./scene-session.js";
 import { createSceneControls } from "./scene-controls.js";
 import { MythicBridge, MYTHIC_READY_EVENT } from "./mythic-bridge.js";
 import { renderMythicPanel } from "./mythic-view.js";
+import { renderCampaign } from "./campaign-view.js";
 import { AgentAdmission } from "./agent-admission.js";
 import { GitHubCheckpointSync } from "./github-sync.js";
 let admitGeneration = async (_type) => false;
@@ -43,13 +44,14 @@ window.minorCharacterActionGuard = async (_chat, _size, abort, type = 'normal') 
 };
 const launcher = document.createElement('button');
 launcher.id = 'minor-character-launch';
-launcher.className = 'menu_button';
-launcher.textContent = 'Sera’s sheet';
+launcher.className = 'menu_button mc-launcher';
+launcher.textContent = 'SB';
+launcher.setAttribute('aria-label', 'Sera’s sheet');
 let destinationChanged = () => { };
 const shell = createSheetShell(launcher, () => destinationChanged());
-shell.content.innerHTML = `<p role="status" aria-live="polite">Starting…</p>
-  <div class="mc-actions">
-    <button class="menu_button" data-create disabled>Create Sera’s campaign</button>
+shell.content.innerHTML = `<p role="status" aria-live="polite" class="mc-panel-status">Starting…</p>
+  <div class="mc-actions mc-campaign-setup">
+    <button class="menu_button mc-primary" data-create disabled>Create Sera’s campaign</button>
     <button class="menu_button" data-reopen disabled>Reopen saved campaign</button>
   </div><div class="mc-sheet-body"></div>`;
 const status = shell.content.querySelector('[role="status"]');
@@ -61,6 +63,7 @@ status.after(agentNotice);
 const content = shell.content.querySelector('.mc-sheet-body');
 const create = shell.content.querySelector('[data-create]');
 const reopen = shell.content.querySelector('[data-reopen]');
+const setup = shell.content.querySelector('.mc-campaign-setup');
 shell.mount();
 const refKey = (ref) => JSON.stringify(ref.kind === 'group' ? ['group', ref.chatId] : ['character', ref.characterId, ref.fileName]);
 try {
@@ -166,7 +169,6 @@ try {
                 && (!extension.name.includes('SillyTavern-MemoryBooks') || disabled.includes(extension.name)));
         },
     });
-    shell.content.append(narrationRoot);
     // The narrator always reads the current public sheet and this scene's recorded results, whatever starts generation.
     const narratorProjection = new NarratorProjection(controller, {
         mythic: () => mythic.narratorFacts,
@@ -179,7 +181,6 @@ try {
     const gmControls = createSceneControls(sceneModel, sceneSession, api.llmConnections, gmAvailable, sceneDraftReady, startScene, selection => { void playSettings.update({ scene: selection }); });
     const settingsControls = createPlaySettingsControls({ store: playSettings, connections: api.llmConnections, available: gmAvailable,
         applied: () => { applyRoles(); render(); }, secret: triageSecret });
-    shell.content.append(settingsControls.element, gmControls.element);
     // Turn flow operations run inside the host's interceptor, after GENERATION_STARTED, so they must not deny themselves via writerActive.
     async function captureTurn(expected) {
         if (!writerReady())
@@ -198,7 +199,9 @@ try {
         mythic: { get present() { return mythic.present && !!mythic.state; }, get sceneUnchecked() { return mythic.sceneUnchecked; },
             fate: (odds, question) => mythic.fate(odds, question), sceneCheck: () => mythic.sceneCheck() },
         endScene: () => {
-            shell.show('sheet');
+            campaignTool = 'scene';
+            shell.show('campaign');
+            render();
             gmControls.element.scrollIntoView({ block: 'start' });
             // Without a scene connection the GM request is disabled; the manual draft is the live way to end the scene.
             gmControls.element.querySelector('[data-gm-request]:enabled, [data-gm-manual]:enabled')?.focus();
@@ -215,7 +218,7 @@ try {
         if (flow.message || flow.choices?.length || !controller.playerView || narrationMemory.busy)
             return flow;
         if (!narrationMemory.recipientIds.length)
-            return { ...flow, message: 'Before narrating, choose the narration recipients in Sera’s sheet.' };
+            return { ...flow, message: 'Before narrating, choose who hears it: Sera’s sheet › Campaign › Narration recipients.' };
         return narrationMemory.held ? { ...flow, message: `Narration is held: ${narrationMemory.held}` } : flow;
     }
     function writerReady() { return !eventSession.editing && !memorySession.busy && !memorySession.reviewing && !castSession.editing && !profileSession.editing && !corrections.editing && !sceneSession.busy && !sceneReview.busy && ready(); }
@@ -261,6 +264,7 @@ try {
         return retained ?? (source ? { ...operation, source: { messageId: source.id, messageRevision: source.fingerprint } } : operation);
     }
     let selectedPersonId = null;
+    let campaignTool = null, focusCampaign = false;
     let castOwner = '', castQuery = '', castDetail = false, showRetired = false, castPosition = 0, focusCastResult = false;
     destinationChanged = () => { eventSession.reset(); profileSession.reset(); castSession.reset(); render(); };
     let profileOwner = '';
@@ -313,7 +317,13 @@ try {
         }
         status.textContent = controller.state.status;
         create.disabled = controller.state.busy || !controller.state.available || !!view;
+        create.hidden = !!view;
         reopen.disabled = controller.state.busy;
+        // Reopening is for recovery: shown before a campaign is open, or when a save outcome needs reconciling.
+        const needsReopen = !view || !controller.state.available || /uncertain|cannot|reopen before/i.test(controller.state.status);
+        setup.hidden = !!view && !needsReopen && shell.destination !== 'settings';
+        launcher.textContent = view ? view.sheet.name.split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase() : 'SB';
+        launcher.setAttribute('aria-label', view ? `${view.sheet.name}’s sheet` : 'Sera’s sheet');
         if (view) {
             corrections.reconcile(view);
             sceneReview.reconcile(view);
@@ -398,31 +408,53 @@ try {
                     },
                 });
             }
-            else {
+            else if (shell.destination === 'sheet') {
                 mythic.attach();
                 renderSheet(content, corrections.view ?? view, corrections.editor, profileCallbacks, mythic.sheet);
                 shell.renderHistory(view);
-                const play = document.createElement('details');
-                const summary = document.createElement('summary');
-                summary.textContent = 'Class, element & scene controls';
-                const controls = document.createElement('div');
-                play.append(summary, controls);
-                content.querySelector('.mc-identity').append(play);
-                renderPlayControls(controls, controller, capturePlay, playReady, {
-                    store: api.extension.store,
-                    metadata: resolveMetadata,
-                    github: githubSync,
-                    onRestored: () => refresh(true),
-                });
-                renderMythicPanel(controls, view, mythic, playReady);
                 corrections.render(content);
-                renderSceneReview(content, view, sceneReview, mythic);
             }
-            renderMemory(content, view, memorySession);
+            else if (shell.destination === 'campaign') {
+                mythic.attach();
+                const tools = { store: api.extension.store, metadata: resolveMetadata, github: githubSync, onRestored: () => refresh(true) };
+                renderCampaign(content, view, {
+                    tool: campaignTool, chaos: mythic.state?.chaosFactor, recipients: narrationMemory.recipientIds.length,
+                    open: tool => { campaignTool = tool; focusCampaign = true; render(); },
+                    renderTool: (tool, container) => {
+                        if (tool === 'scene') {
+                            container.append(gmControls.element);
+                            renderSceneReview(container, view, sceneReview, mythic);
+                        }
+                        else if (tool === 'mythic')
+                            renderMythicPanel(container, view, mythic, playReady);
+                        else if (tool === 'narration')
+                            container.append(narrationRoot);
+                        else
+                            renderPlayControls(container, controller, capturePlay, playReady, tools, tool);
+                    },
+                });
+            }
+            else {
+                content.replaceChildren(settingsControls.element);
+                const file = document.createElement('section');
+                file.className = 'mc-settings-file';
+                file.append(Object.assign(document.createElement('h3'), { textContent: 'Campaign file' }), Object.assign(document.createElement('p'), { textContent: `Campaign ${view.context.campaignId} · branch ${view.context.branchId} · revision ${view.context.revision} · rules ${view.rules.revision}` }));
+                file.append(setup);
+                content.append(file);
+            }
+            if (shell.destination === 'campaign')
+                renderMemory(content, view, memorySession);
         }
+        // Play settings work before any campaign exists: the triage key and connections are per device.
+        else if (shell.destination === 'settings')
+            content.replaceChildren(settingsControls.element);
         else
             content.replaceChildren();
-        renderActions(inline, controller, capturePlay, playReady, cardFlow());
+        // The setup row lives above the body except in Settings, where it sits in the campaign file section.
+        if (shell.destination !== 'settings' && setup.parentElement !== shell.content)
+            content.before(setup);
+        renderActions(inline, controller, capturePlay, playReady, { ...cardFlow(), chaos: mythic.state?.chaosFactor });
+        document.querySelector('#sheld')?.classList.toggle('mc-card-modal', inline.classList.contains('mc-card-modal'));
         // Spec §10: a proposal that arrives without stakes puts the caret in the stakes text once, when it first appears.
         const proposalId = view?.proposal?.id ?? '';
         if (proposalId && proposalId !== focusedProposal)
@@ -435,7 +467,6 @@ try {
             renderNarrationMemory(narrationRoot, view.profiles, narrationMemory);
         gmControls.render();
         settingsControls.render();
-        gmControls.element.hidden = settingsControls.element.hidden = shell.destination === 'cast';
         if (reviewFocus) {
             const controls = [...content.querySelectorAll('[data-review-field]')];
             const target = controls.find(control => control.dataset.reviewField === reviewFocus.key && !control.matches(':disabled'))
@@ -461,6 +492,11 @@ try {
         if (corrections.editing)
             inline.querySelectorAll('input, select, button').forEach(control => { control.disabled = true; });
         mount();
+        if (focusCampaign) {
+            focusCampaign = false;
+            (campaignTool ? content.querySelector('[data-campaign-title]')
+                : content.querySelector('[data-campaign-tool]'))?.focus({ preventScroll: true });
+        }
         if (focusCastResult) {
             content.querySelector('[data-cast-detail] h3')?.focus();
             focusCastResult = false;

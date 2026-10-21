@@ -1,5 +1,6 @@
-import { element, button, select, input, checkbox, form } from "./card-controls.js";
+import { element, button, input, form, choiceGroup, toggle, diceMeter, details } from "./card-controls.js";
 import { activeClassBonuses } from "./game/minor-character/sheet.js";
+import { prepareAction } from "./action.js";
 export const HARM_MARKS = [
     ['0', 'No Harm · 0 marks'], ['1', 'Low · 1 mark'], ['2', 'Normal · 2 marks'],
     ['3', 'High · 3 marks'], ['4', 'Extreme · 4 marks'],
@@ -9,56 +10,145 @@ export function harmTargets(view) {
         ...view.sheet.aspects.map(a => [a.id, `Absorb on ${a.name} (${a.type})`])];
 }
 export const HARM_OVERFLOW = [['injury', 'Overflow becomes injury'], ['burn', 'Burn 1 box to absorb overflow']];
-/** The full manual declaration: every pool, Cut and impact choice the rules expose, rolled and saved in code. */
+const dice = (n) => `${n} ${n === 1 ? 'die' : 'dice'}`;
+/** Edge, Skill and Advantage as chips, Cuts as segmented controls and toggles, and a live dice count above Roll. */
 export function renderDeclarationForm(view, card) {
     const root = form('mc-action-declaration');
-    root.append(element('h4', 'Declare a simple action'), element('p', 'Roll only for difficult, dangerous or dramatic actions. This basic roll has no automatic costs or sheet effects. Use manual adjudication for unsupported abilities.'));
-    const description = input(root, 'What does Sera attempt?', true, 'description');
-    const edge = select(root, 'Fitting Edge', [['', 'None'], ...view.sheet.edges.map(e => [e, e])], 'edge');
+    const body = element('div');
+    body.className = 'mc-declare-body';
+    root.append(body);
+    const description = input(body, 'What does Sera attempt?', true, 'description');
+    description.classList.add('mc-prose-input');
+    const edge = choiceGroup(body, 'Edge · +1 die when the approach fits', 'edge', [{ value: '', label: 'None' }, ...view.sheet.edges.map(name => ({ value: name, label: name }))], 'chips', '');
     const bonuses = activeClassBonuses(view.sheet);
-    const ranks = [['', 'None / untrained (0)']];
+    const trained = [], untrained = [];
     for (const [kind, values] of [['skill', view.sheet.skills], ['lore', view.sheet.lores]]) {
         for (const [name, rank] of Object.entries(values)) {
             const bonus = kind === 'skill' && Object.hasOwn(bonuses, name) ? bonuses[name] : 0;
-            ranks.push([JSON.stringify({ kind, name }), `${name} · ${kind} trained ${rank}${bonus ? ` + class ${bonus}` : ''}`]);
+            const choice = { value: JSON.stringify({ kind, name }), label: name,
+                hint: `${kind === 'lore' ? 'Lore' : 'Skill'} · ${rank + bonus}d${bonus ? ` · ${view.sheet.activeClass} +${bonus}` : ''}` };
+            (rank + bonus > 0 ? trained : untrained).push(choice);
         }
     }
-    const skill = select(root, 'Skill or Lore', ranks, 'skill');
-    const advantage1 = input(root, 'First Advantage source (optional)', false, 'advantage1');
-    const advantage2 = input(root, 'Second distinct Advantage source (optional)', false, 'advantage2');
-    root.append(element('p', 'Active class competence adds only to Skills while Origin is available. Dice above six cancel mandatory Cuts; voluntary Precision/Impact Cuts remain. Unused overflow is lost.'), element('h4', 'Declare Cuts before rolling'));
-    const difficulty = select(root, 'Difficulty', [['0', 'Ordinary · Cut 0'], ['1', 'Hard · Cut 1'], ['2', 'Desperate · Cut 2']], 'difficulty');
-    const rankGap = select(root, 'Opposed rank gap', [['0', 'None / equal · Cut 0'], ['1', 'One above · Cut 1'], ['2', 'Two above · Cut 2, impact down']], 'rankGap');
-    root.append(element('p', 'Three or more ranks above: direct harm is impossible until a real vulnerability or asset changes the matchup. Escape, protection and preparation remain possible; adjudicate the matchup manually before declaring this roll.'));
-    const mires = view.sheet.mires.map(mire => ({ id: mire.id,
-        control: checkbox(root, `Act against ${mire.name} · Cut ${mire.track.boxes.filter(box => box === 'marked').length}`, `mire:${mire.id}`) }));
-    const precision = checkbox(root, 'Voluntary Precision · Cut 1 to target a part or deny an ability', 'precision');
-    const impactCut = checkbox(root, 'Voluntary Impact · Cut 1 to raise impact one step', 'impact');
-    const baseImpact = select(root, 'Base impact', [['Normal', 'Normal · one box'], ['Low', 'Low · one fewer'], ['High', 'High · one extra'], ['Massive', 'Massive · whole track, siege-scale permission']], 'baseImpact');
-    const battery = select(root, 'Origin Core Battery', [
-        ['', 'None'],
-        ['massive', 'Massive impact · 2 Core Fatigue'],
-        ['bypass-rank-gap', 'Bypass rank gap · 2 Core Fatigue'],
-    ], 'battery');
-    root.append(element('p', 'Three or more Cuts, including automatic Mana Strain, require a feasible objective and a manual permission ruling. Overflow does not bypass permissions or restore reduced impact. Massive requires siege-scale permission. Unearned projects (including Marginalia) grant no Advantage.'));
-    const permission = input(root, 'Permission ruling (required for 3+ Cuts or Massive)', false, 'permission');
-    const roll = button('Roll and save');
+    const skill = choiceGroup(body, 'Skill or Lore · pick one', 'skill', [...trained, ...untrained, { value: '', label: 'None', hint: 'no Skill or Lore' }], 'chips', '');
+    const untrainedValues = new Set(untrained.map(choice => choice.value));
+    skill.inputs.forEach(control => { if (untrainedValues.has(control.value))
+        control.parentElement.classList.add('mc-choice-untrained'); });
+    if (untrained.length) {
+        const more = button(`Show ${untrained.length} untrained`, 'mc-link-button');
+        more.setAttribute('aria-expanded', 'false');
+        more.onclick = () => {
+            const open = skill.root.classList.toggle('mc-show-untrained');
+            more.textContent = open ? 'Hide untrained' : `Show ${untrained.length} untrained`;
+            more.setAttribute('aria-expanded', String(open));
+        };
+        skill.root.append(more);
+    }
+    const advantages = document.createElement('fieldset');
+    advantages.className = 'mc-choice mc-advantages';
+    advantages.append(element('legend', 'Advantage · up to 2, +1 die each'));
+    const advantage1 = input(advantages, 'First Advantage source (optional)', false, 'advantage1');
+    const advantage2 = input(advantages, 'Second distinct Advantage source (optional)', false, 'advantage2');
+    body.append(advantages);
+    const cuts = element('section');
+    cuts.className = 'mc-declare-cuts';
+    cuts.append(element('h4', 'Cuts · declare before rolling'));
+    body.append(cuts);
+    const difficulty = choiceGroup(cuts, 'Difficulty', 'difficulty', [
+        { value: '0', label: 'Ordinary', hint: 'no Cut' }, { value: '1', label: 'Hard', hint: 'Cut 1' }, { value: '2', label: 'Desperate', hint: 'Cut 2' }
+    ], 'segmented', '0');
+    const rankGap = choiceGroup(cuts, 'Opposed rank gap', 'rankGap', [
+        { value: '0', label: 'Equal', hint: 'no Cut' }, { value: '1', label: 'One above', hint: 'Cut 1' },
+        { value: '2', label: 'Two above', hint: 'Cut 2 · impact down' }
+    ], 'segmented', '0');
+    const gapNote = element('p', 'Three or more ranks above: no direct harm until a real vulnerability or asset changes the matchup. Escape, protection and preparation remain possible.');
+    gapNote.className = 'mc-hint';
+    cuts.append(gapNote);
+    const extras = element('div');
+    extras.className = 'mc-toggles';
+    extras.append(element('p', 'Acting against a Mire, or choosing extra Cuts'));
+    const mires = view.sheet.mires.map(mire => {
+        const marks = mire.track.boxes.filter(box => box === 'marked').length;
+        return { id: mire.id, control: toggle(extras, `Act against ${mire.name}`, marks ? `Cut ${marks}` : 'no marks', `mire:${mire.id}`) };
+    });
+    const precision = toggle(extras, 'Voluntary Precision · target a part or deny an ability', 'Cut 1', 'precision');
+    const impactCut = toggle(extras, 'Voluntary Impact · raise impact one step', 'Cut 1', 'impact');
+    cuts.append(extras);
+    const baseImpact = choiceGroup(cuts, 'Base impact', 'baseImpact', [
+        { value: 'Low', label: 'Low' }, { value: 'Normal', label: 'Normal' }, { value: 'High', label: 'High' }, { value: 'Massive', label: 'Massive' }
+    ], 'segmented', 'Normal');
+    const batteryBox = details('mc-declare-battery', 'Origin Core Battery · 2 Core Fatigue', 'battery:open');
+    const battery = choiceGroup(batteryBox, 'Origin Core Battery', 'battery', [
+        { value: '', label: 'None' }, { value: 'massive', label: 'Massive impact' }, { value: 'bypass-rank-gap', label: 'Bypass rank gap' }
+    ], 'segmented', '');
+    cuts.append(batteryBox);
+    const footer = element('div');
+    footer.className = 'mc-declare-footer';
+    const permissionLabel = element('label', 'Permission ruling (required for 3+ Cuts or Massive)');
+    permissionLabel.className = 'mc-permission';
+    const permission = document.createElement('input');
+    permission.className = 'text_pole';
+    permission.dataset.draft = 'permission';
+    permission.placeholder = 'Why this is feasible';
+    permissionLabel.append(permission);
+    const meterLine = element('div');
+    meterLine.className = 'mc-meter-line';
+    const meterText = element('div');
+    meterText.className = 'mc-meter-text';
+    const meterTitle = element('strong');
+    const meterSub = element('span');
+    meterText.append(meterTitle, meterSub);
+    const roll = button('Roll', 'menu_button mc-primary');
+    roll.dataset.roll = '';
+    footer.append(permissionLabel, meterLine, roll);
+    root.append(footer);
+    const read = () => {
+        const skillValue = skill.value;
+        return { description: description.value, edge: edge.value || null,
+            skill: skillValue ? JSON.parse(skillValue) : null,
+            advantageSources: [advantage1.value.trim(), advantage2.value.trim()].filter(Boolean),
+            cuts: { difficulty: Number(difficulty.value || 0), rankGap: Number(rankGap.value || 0),
+                mires: mires.filter(mire => mire.control.checked).map(mire => mire.id),
+                precision: precision.checked, impact: impactCut.checked },
+            baseImpact: (baseImpact.value || 'Normal'), permission: permission.value.trim(),
+            ...(battery.value ? { battery: battery.value } : {}) };
+    };
+    /** The live count above Roll: the same validation the resolver runs, without dice. */
+    const update = () => {
+        let title = '', sub = '', pool = 0, cut = 0, needs = false;
+        try {
+            const prepared = prepareAction(view.sheet, { ...read(), description: description.value.trim() || 'pending' });
+            pool = prepared.pool;
+            cut = Math.min(prepared.pool, prepared.cuts.total);
+            needs = prepared.needsPermission;
+            const left = pool - cut;
+            title = pool === 0 ? 'No dice: one fallback die' : `${dice(pool)}, Cut ${prepared.cuts.total}`;
+            sub = pool === 0 ? 'A 6 counts as Conflict. No Twist.'
+                : left <= 0 ? 'Every die is cut: one fallback die, no Twist'
+                    : `${cut ? `Highest ${cut} removed, ` : ''}${left} left to read${prepared.origin.overflow ? ` · ${prepared.origin.overflow} over the cap cancels Cuts` : ''}`;
+        }
+        catch (error) {
+            title = 'Check the declaration';
+            sub = error instanceof Error ? error.message : String(error);
+        }
+        meterTitle.textContent = title;
+        meterSub.textContent = sub;
+        meterLine.replaceChildren(diceMeter(pool, cut, `${title}. ${sub}`), meterText);
+        permissionLabel.hidden = !needs && !permission.value.trim();
+        roll.textContent = pool === 0 ? 'Roll the fallback die' : `Roll ${dice(pool)}`;
+    };
+    root.addEventListener('change', update);
+    root.addEventListener('input', update);
+    root.addEventListener('mc-restored', update);
+    update();
     roll.disabled = !card.ready();
-    root.append(roll);
     roll.onclick = async () => {
+        update();
         if (!root.reportValidity())
             return;
         roll.disabled = true;
-        const action = { description: description.value, edge: edge.value || null,
-            skill: skill.value ? JSON.parse(skill.value) : null,
-            advantageSources: [advantage1.value.trim(), advantage2.value.trim()].filter(Boolean),
-            cuts: { difficulty: Number(difficulty.value), rankGap: Number(rankGap.value),
-                mires: mires.filter(mire => mire.control.checked).map(mire => mire.id),
-                precision: precision.checked, impact: impactCut.checked },
-            baseImpact: baseImpact.value, permission: permission.value.trim(),
-            ...(battery.value ? { battery: battery.value } : {}) };
         try {
-            await card.controller.submitAction({ ...await card.capture(view.context), action });
+            await card.controller.submitAction({ ...await card.capture(view.context), action: read() });
         }
         catch (error) {
             card.report(String(error));

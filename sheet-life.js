@@ -34,7 +34,6 @@ export function renderLife(root, view, editor) {
     root.replaceChildren();
     root.classList.add('mc-life');
     root.dataset.characterId = view.character.id;
-    root.append(text('h2', 'Drives & more'));
     const character = view.character;
     namedList(section(root, 'Drives'), character.impulses.filter(entry => entry.type === 'text'), 'impulse', 'No Drives recorded.', view, editor, [character.id]);
     const mires = section(root, 'Mires');

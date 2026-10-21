@@ -1,10 +1,12 @@
 import { element, button, select, input, checkbox, form, details } from "./card-controls.js";
 import { HARM_MARKS, HARM_OVERFLOW, harmTargets } from "./declaration-form.js";
-/** A pending manual result: structured Stakes & Twist controls first, free-text handling and System Rescue as fallbacks. */
+/** A pending result: what it cost (when no stakes were agreed), the Twist as choices, then manual handling and System Rescue. */
 export function renderPendingStakes(view, entry, card) {
     const section = element('section');
     section.className = 'mc-pending-stakes';
-    section.append(element('p', 'This roll is binding. Record its consequences here: harm, a banked or immediate Twist, or both. Nothing below rewrites the dice.'));
+    const hint = element('p', 'This roll is binding. Record what follows from it; nothing here rewrites the dice.');
+    hint.className = 'mc-hint';
+    section.append(hint);
     section.append(renderStakesForm(view, entry, card));
     const fallback = details('mc-stakes-fallback', 'Handled manually or System Rescue', 'stakes:fallback');
     fallback.append(renderManualForm(view, entry, card));
@@ -15,62 +17,105 @@ export function renderPendingStakes(view, entry, card) {
 }
 function renderStakesForm(view, entry, card) {
     const stakesForm = form('mc-stakes-adjudication');
-    stakesForm.append(element('h4', 'Stakes & Twist'));
-    const stakesNote = input(stakesForm, 'Stakes adjudication note', true, 'stakes:note');
-    const harmMarks = select(stakesForm, 'Harm marks', HARM_MARKS, 'stakes:marks');
-    const harmTarget = select(stakesForm, 'Harm target', harmTargets(view), 'stakes:target');
-    const harmOverflow = select(stakesForm, 'Harm overflow choice', HARM_OVERFLOW, 'stakes:overflow');
-    const injuryName = input(stakesForm, 'Injury name (if injury created)', false, 'stakes:injury');
-    const twistChoice = select(stakesForm, 'Twist adjudication', [
-        ['', 'None'], ['note', 'Immediate narrative note'], ['bank', 'Bank Twist for this scene'],
-        ['critical', 'Critical upgrade (+1 impact)'], ['counter', 'Immediate counter-impact'],
-        ['mystery-discovery', 'Small Mystery discovery'],
-    ], 'stakes:twist');
-    const twistNote = input(stakesForm, 'Twist description or note', false, 'stakes:twistNote');
-    const twistMystery = select(stakesForm, 'Mystery for Twist discovery', view.campaignDetails.mysteries.map(m => [m.id, m.question]), 'stakes:mystery');
-    const adjudicateBtn = button('Adjudicate stakes');
-    adjudicateBtn.disabled = !card.ready();
-    stakesForm.append(adjudicateBtn);
-    adjudicateBtn.onclick = async () => {
-        if (!stakesForm.reportValidity())
-            return;
-        adjudicateBtn.disabled = true;
-        const marks = Number(harmMarks.value);
-        const harm = marks > 0 ? {
-            kind: 'apply-harm',
-            marks,
+    const receipt = entry.receipt;
+    const twisted = receipt.result.twist;
+    // Accepted stakes already settled the harm in code; only an unstaked Conflict or Disaster asks what it cost.
+    const needsHarm = receipt.command.action.stakes === undefined && receipt.result.outcome !== 'Triumph';
+    let stakesNote, harmMarks, harmTarget;
+    let harmOverflow, injuryName;
+    if (needsHarm || !twisted) {
+        const cost = element('div');
+        cost.className = 'mc-stakes-cost';
+        cost.append(element('h4', 'What did it cost?'));
+        stakesNote = input(cost, 'Stakes adjudication note', true, 'stakes:note');
+        harmMarks = select(cost, 'Harm marks', HARM_MARKS, 'stakes:marks');
+        harmTarget = select(cost, 'Harm target', harmTargets(view), 'stakes:target');
+        harmOverflow = select(cost, 'Harm overflow choice', HARM_OVERFLOW, 'stakes:overflow');
+        injuryName = input(cost, 'Injury name (if injury created)', false, 'stakes:injury');
+        stakesForm.append(cost);
+    }
+    const harm = () => {
+        const marks = Number(harmMarks?.value ?? 0);
+        return marks > 0 ? {
+            kind: 'apply-harm', marks,
             targetAspectId: harmTarget.value || null,
             overflowChoice: harmOverflow.value,
             injuryId: `injury-${entry.operationId}`,
             injuryName: injuryName.value.trim() || 'Stakes injury',
             injuryEffect: stakesNote.value.trim(),
         } : undefined;
-        const text = twistNote.value.trim() || stakesNote.value.trim();
-        let twist;
-        if (twistChoice.value === 'note')
-            twist = { kind: 'note', text };
-        else if (twistChoice.value === 'bank')
-            twist = { kind: 'bank', twistId: `twist-${entry.operationId}`, description: text };
-        else if (twistChoice.value === 'critical')
-            twist = { kind: 'critical', elevatedImpact: 'High' };
-        else if (twistChoice.value === 'counter')
-            twist = { kind: 'counter', targetName: text, marks: 1 };
-        else if (twistChoice.value === 'mystery-discovery') {
-            twist = { kind: 'mystery-discovery', mysteryId: twistMystery.value, discoveryId: `disc-${entry.operationId}`, name: text };
+    };
+    const buttons = [];
+    const submit = async (control, twist, twistText) => {
+        if (!stakesForm.reportValidity())
+            return;
+        const note = stakesNote?.value.trim() || twistText;
+        if (!note) {
+            card.report('Say what the Twist adds first.');
+            return;
         }
+        buttons.forEach(other => { other.disabled = true; });
         try {
+            const harmCommand = harm();
             await card.controller.adjudicateStakes(await card.capture(view.context), {
-                targetOperationId: entry.operationId,
-                note: stakesNote.value.trim(),
-                ...(harm ? { harm } : {}),
+                targetOperationId: entry.operationId, note,
+                ...(harmCommand ? { harm: harmCommand } : {}),
                 ...(twist ? { twist } : {}),
             });
         }
         catch (error) {
             card.report(String(error));
-            adjudicateBtn.disabled = !card.ready();
+            buttons.forEach(other => { other.disabled = !card.ready(); });
         }
+        void control;
     };
+    const action = (parent, label, run, className = 'menu_button') => {
+        const control = button(label, className);
+        control.disabled = !card.ready();
+        control.onclick = () => run(control);
+        buttons.push(control);
+        parent.append(control);
+        return control;
+    };
+    if (!twisted) {
+        const actions = element('div');
+        actions.className = 'mc-actions';
+        action(actions, 'Record consequences', control => submit(control, undefined, ''), 'menu_button mc-primary');
+        stakesForm.append(actions);
+        return stakesForm;
+    }
+    const box = element('div');
+    box.className = 'mc-twist-box';
+    box.append(element('h4', 'Your Twist'));
+    const hint = element('p', 'A Twist adds something unexpected. It never changes the result.');
+    hint.className = 'mc-hint';
+    box.append(hint);
+    const twistNote = input(box, 'What does the Twist add?', false, 'stakes:twistNote');
+    twistNote.classList.add('mc-prose-input');
+    const text = () => twistNote.value.trim();
+    const needText = (run) => async (control) => {
+        if (!text()) {
+            twistNote.focus();
+            card.report('Say what the Twist adds first.');
+            return;
+        }
+        await submit(control, run(text()), text());
+    };
+    const choices = element('div');
+    choices.className = 'mc-twist-choices';
+    action(choices, 'Use as a note', needText(value => ({ kind: 'note', text: value })), 'menu_button mc-twist-primary');
+    action(choices, 'Bank it', needText(value => ({ kind: 'bank', twistId: `twist-${entry.operationId}`, description: value })));
+    action(choices, 'Critical · impact up one step', control => submit(control, { kind: 'critical', elevatedImpact: 'High' }, text() || 'Critical: impact up one step.'));
+    box.append(choices);
+    const more = details('mc-twist-more', 'More Twist choices', 'stakes:twistMore');
+    action(more, 'Counter-impact on the opposition', needText(value => ({ kind: 'counter', targetName: value, marks: 1 })));
+    if (view.campaignDetails.mysteries.length) {
+        const mystery = select(more, 'Mystery for Twist discovery', view.campaignDetails.mysteries.map(m => [m.id, m.question]), 'stakes:mystery');
+        action(more, 'Record as a small discovery', needText(value => ({ kind: 'mystery-discovery', mysteryId: mystery.value,
+            discoveryId: `disc-${entry.operationId}`, name: value })));
+    }
+    box.append(more);
+    stakesForm.append(box);
     return stakesForm;
 }
 function renderManualForm(view, entry, card) {
