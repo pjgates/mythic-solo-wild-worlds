@@ -40,7 +40,7 @@ function assertSettled(state) {
     if (state.sceneReview)
         throw new Error('Finish the pending scene review first.');
 }
-// A proposal must already be a legal declaration; the player only changes stakes and voluntary Cuts before rolling.
+// A proposal and any revision to it must be a legal declaration for the current sheet.
 function assertDeclaration(state, declaration) {
     if (!declaration || typeof declaration !== 'object')
         throw new Error('Invalid proposed declaration.');

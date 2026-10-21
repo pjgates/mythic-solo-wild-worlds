@@ -53,7 +53,9 @@ export class TurnFlow {
                     choices.push({ label: 'Ask the oracle', run: () => this.#askOracle(turn) });
                 choices.push({ label: this.#host.mythic.present ? 'Narrate without the oracle' : 'Narrate', run: () => this.#narrate() });
                 return { message: turn.message, choices: controller.canGenerate ? choices : [],
-                    fate: { question: fate.question, odds: fate.odds, options: FATE_ODDS, select: odds => { fate.odds = odds; } } };
+                    fate: { question: fate.question, odds: fate.odds, options: FATE_ODDS,
+                        select: (odds, question) => { fate.odds = odds; if (question !== undefined)
+                            fate.question = question; } } };
             }
             case 'handled': return controller.canGenerate
                 ? { message: turn.message, choices: [...this.#sheetChoice(turn), { label: turn.narrateLabel, run: () => turn.unreadNote ? this.#narrateUnread() : this.#narrate() }],

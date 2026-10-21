@@ -10,16 +10,23 @@ export function harmTargets(view) {
         ...view.sheet.aspects.map(a => [a.id, `Absorb on ${a.name} (${a.type})`])];
 }
 export const HARM_OVERFLOW = [['injury', 'Overflow becomes injury'], ['burn', 'Burn 1 box to absorb overflow']];
-const dice = (n) => `${n} ${n === 1 ? 'die' : 'dice'}`;
-/** Edge, Skill and Advantage as chips, Cuts as segmented controls and toggles, and a live dice count above Roll. */
-export function renderDeclarationForm(view, card) {
-    const root = form('mc-action-declaration');
-    const body = element('div');
-    body.className = 'mc-declare-body';
-    root.append(body);
-    const description = input(body, 'What does Sera attempt?', true, 'description');
-    description.classList.add('mc-prose-input');
-    const edge = choiceGroup(body, 'Edge · +1 die when the approach fits', 'edge', [{ value: '', label: 'None' }, ...view.sheet.edges.map(name => ({ value: name, label: name }))], 'chips', '');
+export const DIFFICULTY_CHOICES = [
+    { value: '0', label: 'Ordinary', hint: 'no Cut' }, { value: '1', label: 'Hard', hint: 'Cut 1' }, { value: '2', label: 'Desperate', hint: 'Cut 2' },
+];
+export const RANK_GAP_CHOICES = [
+    { value: '0', label: 'Equal', hint: 'no Cut' }, { value: '1', label: 'One above', hint: 'Cut 1' },
+    { value: '2', label: 'Two above', hint: 'Cut 2 · impact down' },
+];
+export const BASE_IMPACT_CHOICES = [
+    { value: 'Low', label: 'Low' }, { value: 'Normal', label: 'Normal' }, { value: 'High', label: 'High' }, { value: 'Massive', label: 'Massive' },
+];
+export const BATTERY_CHOICES = [
+    { value: '', label: 'None' }, { value: 'massive', label: 'Massive impact' }, { value: 'bypass-rank-gap', label: 'Bypass rank gap' },
+];
+export function edgeChoices(view) {
+    return [{ value: '', label: 'None' }, ...view.sheet.edges.map(name => ({ value: name, label: name }))];
+}
+export function renderSkillChoice(parent, view, initial = '') {
     const bonuses = activeClassBonuses(view.sheet);
     const trained = [], untrained = [];
     for (const [kind, values] of [['skill', view.sheet.skills], ['lore', view.sheet.lores]]) {
@@ -30,20 +37,52 @@ export function renderDeclarationForm(view, card) {
             (rank + bonus > 0 ? trained : untrained).push(choice);
         }
     }
-    const skill = choiceGroup(body, 'Skill or Lore · pick one', 'skill', [...trained, ...untrained, { value: '', label: 'None', hint: 'no Skill or Lore' }], 'chips', '');
+    const skill = choiceGroup(parent, 'Skill or Lore · pick one', 'skill', [...trained, ...untrained, { value: '', label: 'None', hint: 'no Skill or Lore' }], 'chips', initial);
     const untrainedValues = new Set(untrained.map(choice => choice.value));
     skill.inputs.forEach(control => { if (untrainedValues.has(control.value))
         control.parentElement.classList.add('mc-choice-untrained'); });
+    let more;
+    const syncButton = () => {
+        if (!more)
+            return;
+        const open = skill.root.classList.contains('mc-show-untrained');
+        more.textContent = open ? 'Hide untrained' : `Show ${untrained.length} untrained`;
+        more.setAttribute('aria-expanded', String(open));
+    };
+    const revealUntrainedIfSelected = () => {
+        if (untrainedValues.has(skill.value)) {
+            skill.root.classList.add('mc-show-untrained');
+            syncButton();
+        }
+    };
     if (untrained.length) {
-        const more = button(`Show ${untrained.length} untrained`, 'mc-link-button');
+        more = button(`Show ${untrained.length} untrained`, 'mc-link-button');
         more.setAttribute('aria-expanded', 'false');
         more.onclick = () => {
-            const open = skill.root.classList.toggle('mc-show-untrained');
-            more.textContent = open ? 'Hide untrained' : `Show ${untrained.length} untrained`;
-            more.setAttribute('aria-expanded', String(open));
+            skill.root.classList.toggle('mc-show-untrained');
+            syncButton();
         };
         skill.root.append(more);
     }
+    revealUntrainedIfSelected();
+    return {
+        root: skill.root, inputs: skill.inputs,
+        get value() { return skill.value; },
+        set value(next) { skill.value = next; },
+        revealUntrainedIfSelected,
+    };
+}
+const dice = (n) => `${n} ${n === 1 ? 'die' : 'dice'}`;
+/** Edge, Skill and Advantage as chips, Cuts as segmented controls and toggles, and a live dice count above Roll. */
+export function renderDeclarationForm(view, card) {
+    const root = form('mc-action-declaration');
+    const body = element('div');
+    body.className = 'mc-declare-body';
+    root.append(body);
+    const description = input(body, 'What does Sera attempt?', true, 'description');
+    description.classList.add('mc-prose-input');
+    const edge = choiceGroup(body, 'Edge · +1 die when the approach fits', 'edge', edgeChoices(view), 'chips', '');
+    const skill = renderSkillChoice(body, view, '');
     const advantages = document.createElement('fieldset');
     advantages.className = 'mc-choice mc-advantages';
     advantages.append(element('legend', 'Advantage · up to 2, +1 die each'));
@@ -54,13 +93,8 @@ export function renderDeclarationForm(view, card) {
     cuts.className = 'mc-declare-cuts';
     cuts.append(element('h4', 'Cuts · declare before rolling'));
     body.append(cuts);
-    const difficulty = choiceGroup(cuts, 'Difficulty', 'difficulty', [
-        { value: '0', label: 'Ordinary', hint: 'no Cut' }, { value: '1', label: 'Hard', hint: 'Cut 1' }, { value: '2', label: 'Desperate', hint: 'Cut 2' }
-    ], 'segmented', '0');
-    const rankGap = choiceGroup(cuts, 'Opposed rank gap', 'rankGap', [
-        { value: '0', label: 'Equal', hint: 'no Cut' }, { value: '1', label: 'One above', hint: 'Cut 1' },
-        { value: '2', label: 'Two above', hint: 'Cut 2 · impact down' }
-    ], 'segmented', '0');
+    const difficulty = choiceGroup(cuts, 'Difficulty', 'difficulty', DIFFICULTY_CHOICES, 'segmented', '0');
+    const rankGap = choiceGroup(cuts, 'Opposed rank gap', 'rankGap', RANK_GAP_CHOICES, 'segmented', '0');
     const gapNote = element('p', 'Three or more ranks above: no direct harm until a real vulnerability or asset changes the matchup. Escape, protection and preparation remain possible.');
     gapNote.className = 'mc-hint';
     cuts.append(gapNote);
@@ -74,13 +108,9 @@ export function renderDeclarationForm(view, card) {
     const precision = toggle(extras, 'Voluntary Precision · target a part or deny an ability', 'Cut 1', 'precision');
     const impactCut = toggle(extras, 'Voluntary Impact · raise impact one step', 'Cut 1', 'impact');
     cuts.append(extras);
-    const baseImpact = choiceGroup(cuts, 'Base impact', 'baseImpact', [
-        { value: 'Low', label: 'Low' }, { value: 'Normal', label: 'Normal' }, { value: 'High', label: 'High' }, { value: 'Massive', label: 'Massive' }
-    ], 'segmented', 'Normal');
+    const baseImpact = choiceGroup(cuts, 'Base impact', 'baseImpact', BASE_IMPACT_CHOICES, 'segmented', 'Normal');
     const batteryBox = details('mc-declare-battery', 'Origin Core Battery · 2 Core Fatigue', 'battery:open');
-    const battery = choiceGroup(batteryBox, 'Origin Core Battery', 'battery', [
-        { value: '', label: 'None' }, { value: 'massive', label: 'Massive impact' }, { value: 'bypass-rank-gap', label: 'Bypass rank gap' }
-    ], 'segmented', '');
+    const battery = choiceGroup(batteryBox, 'Origin Core Battery', 'battery', BATTERY_CHOICES, 'segmented', '');
     cuts.append(batteryBox);
     const footer = element('div');
     footer.className = 'mc-declare-footer';
@@ -115,6 +145,7 @@ export function renderDeclarationForm(view, card) {
     };
     /** The live count above Roll: the same validation the resolver runs, without dice. */
     const update = () => {
+        skill.revealUntrainedIfSelected();
         let title = '', sub = '', pool = 0, cut = 0, needs = false;
         try {
             const prepared = prepareAction(view.sheet, { ...read(), description: description.value.trim() || 'pending' });

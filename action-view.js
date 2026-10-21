@@ -1,4 +1,4 @@
-import { element, button, form, select, captureDrafts, restoreDrafts } from "./card-controls.js";
+import { element, button, form, input, select, captureDrafts, restoreDrafts } from "./card-controls.js";
 import { renderDeclarationForm } from "./declaration-form.js";
 import { renderPendingStakes, renderBankedTwists } from "./stakes-view.js";
 import { renderProposal } from "./proposal-view.js";
@@ -127,12 +127,19 @@ export function renderActions(root, controller, capture, ready, flow = {}) {
         header.append(toggle);
     }
     root.append(header, status);
+    let syncOracle;
     if (flow.fate) {
         const fate = flow.fate;
         const oracle = form('mc-oracle');
-        const odds = select(oracle, 'Odds', fate.options.map(option => [option, ODDS_LABELS[option] ?? option]));
+        const question = input(oracle, 'Question', false, 'oracle:question');
+        question.value = fate.question;
+        const odds = select(oracle, 'Odds', fate.options.map(option => [option, ODDS_LABELS[option] ?? option]), 'oracle:odds');
         odds.value = fate.odds;
-        odds.onchange = () => fate.select(odds.value);
+        syncOracle = () => fate.select(odds.value, question.value);
+        question.onchange = odds.onchange = syncOracle;
+        oracle.addEventListener('change', syncOracle);
+        oracle.addEventListener('input', syncOracle);
+        oracle.addEventListener('mc-restored', syncOracle);
         root.append(oracle);
     }
     const choiceList = (list, className) => {
@@ -142,6 +149,7 @@ export function renderActions(root, controller, capture, ready, flow = {}) {
             const control = button(choice.label);
             control.disabled = !!flow.busy;
             control.onclick = async () => {
+                syncOracle?.();
                 control.disabled = true;
                 try {
                     await choice.run();
@@ -207,4 +215,6 @@ export function renderActions(root, controller, capture, ready, flow = {}) {
     for (const control of root.querySelectorAll('[data-harm-overflow]'))
         control.dispatchEvent(new Event('mc-restored'));
     root.querySelector('form.mc-action-declaration')?.dispatchEvent(new Event('mc-restored'));
+    root.querySelector('form.mc-proposal-stakes')?.dispatchEvent(new Event('mc-restored'));
+    root.querySelector('form.mc-oracle')?.dispatchEvent(new Event('mc-restored'));
 }
