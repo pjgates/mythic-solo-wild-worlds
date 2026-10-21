@@ -1,12 +1,12 @@
-import { prepareAction } from "./action.js";
+import { prepareAction, assertActionHarm } from "./action.js";
 import { activeClassBonuses } from "./game/minor-character/sheet.js";
 export const FATE_ODDS = ['certain', 'nearly-certain', 'very-likely', 'likely', 'fifty-fifty', 'unlikely',
     'very-unlikely', 'nearly-impossible', 'impossible'];
 /** One line per kind; the system prompt and the triage criteria both read from here so they cannot drift. */
 export const KIND_DEFINITIONS = {
-    narrative: 'no mechanics: talk, travel, looking, routine acts',
+    narrative: 'no mechanics: talk, travel, looking, routine acts; questions addressed to an NPC are dialogue unless a risky social attempt is being made',
     action: 'a difficult, dangerous or dramatic attempt that needs a roll',
-    question: 'the player asks the world something uncertain; a Fate Check',
+    question: 'an out-of-character player question about an uncertain world fact; a Fate Check, not a question addressed to an NPC or an attempt phrased as a question',
     rules: 'the player asks about the sheet or rules',
     unclear: 'cannot tell what the player is attempting',
 };
@@ -28,7 +28,7 @@ const DEFINED_KINDS = ['narrative', 'action', 'question', 'rules'];
 /** The rules sentences of the draft prompt; the Jev-only declaration questions (spec §10) quote the same text. */
 export const RULES_TEXT = {
     names: 'Use only the Edge, Skill, Lore, Mire and aspect names supplied.',
-    advantages: 'At most two distinct advantageSources, each a concrete fictional asset present in the scene.',
+    advantages: 'At most two distinct advantageSources, each a concrete fictional asset present in the scene with a distinct useful contribution. A lamp is not automatically an Advantage merely because it makes seeing possible.',
     difficulty: 'Difficulty: 0 ordinary, 1 hard, 2 desperate.',
     rankGap: 'rankGap is how many ranks the opposition stands above the character (0 when none or equal).',
     stakes: 'Stakes describe what goes wrong on a Conflict or Disaster.',
@@ -44,6 +44,8 @@ const SYSTEM = [
     [RULES_TEXT.names, RULES_TEXT.advantages, RULES_TEXT.difficulty, RULES_TEXT.rankGap].join(' '),
     [RULES_TEXT.stakes, RULES_TEXT.harm, RULES_TEXT.recipient].join(' '),
     'clear is true only when the pool, difficulty and rank gap follow plainly from the message and the sheet. Never propose voluntary Cuts, permissions, battery use or rank gaps above two; those are the player\'s choices.',
+    'Choose an Edge for the approach, not the class or magical element. Describe a specific threatened consequence; ordinary observation does not itself establish bodily danger.',
+    'Direct injury (null targetAspectId) always uses overflowChoice injury. A burn wound is injury wording, not permission to burn Aspect boxes; burn requires an actual Aspect.',
     'No other fields. Do not narrate.',
 ].join('\n');
 const SETTLED_KIND = 'When `triage` is present, the kind is settled; return that kind.';
@@ -152,6 +154,7 @@ function readDeclaration(raw, sheet) {
         declaration.stakes = { narrative: raw.stakes.narrative.trim(), harm };
     }
     prepareAction(sheet, declaration);
+    assertActionHarm(declaration);
     return declaration;
 }
 const SERIOUS_HARM = 2;

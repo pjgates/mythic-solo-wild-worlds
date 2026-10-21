@@ -252,6 +252,9 @@ export class CampaignController {
             throw new Error('This ID belongs to another operation kind.');
         return structuredClone(entry.event);
     }
+    describeInjury(context, input) {
+        return this.#submitEvent(context, { kind: 'describe-injury', ...input }, 'injury-described');
+    }
     applyHarm(context, input) {
         return this.#submitEvent(context, { kind: 'apply-harm', ...input }, 'harm-applied');
     }

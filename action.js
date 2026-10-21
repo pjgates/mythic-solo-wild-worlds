@@ -83,8 +83,15 @@ export function prepareAction(sheet, action, injuryCut = 0) {
     const needsPermission = declaredTotal >= 3 || base === 'Massive' || finalImpact === 'Massive';
     return { pool, origin, cuts, impact: finalImpact, needsPermission };
 }
+/** Submission semantics; kept out of proposal replay so older drafts remain editable. */
+export function assertActionHarm(action) {
+    if (action.stakes?.harm?.targetAspectId === null && action.stakes.harm.overflowChoice === 'burn') {
+        throw new Error('Direct injury requires injury handling. Choose an Aspect to burn its boxes, or choose injury.');
+    }
+}
 export function resolveAction(sheet, action, die, injuryCut = 0) {
     const prepared = prepareAction(sheet, action, injuryCut);
+    assertActionHarm(action);
     if (prepared.needsPermission && !action.permission?.trim()) {
         throw new Error('Three or more Cuts or Massive impact require a manual permission ruling before rolling.');
     }

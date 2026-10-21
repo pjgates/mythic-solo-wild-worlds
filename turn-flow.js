@@ -50,7 +50,7 @@ export class TurnFlow {
                 const fate = turn.fate;
                 const choices = [];
                 if (this.#host.mythic.present)
-                    choices.push({ label: 'Ask the oracle', run: () => this.#askOracle() });
+                    choices.push({ label: 'Ask the oracle', run: () => this.#askOracle(turn) });
                 choices.push({ label: this.#host.mythic.present ? 'Narrate without the oracle' : 'Narrate', run: () => this.#narrate() });
                 return { message: turn.message, choices: controller.canGenerate ? choices : [],
                     fate: { question: fate.question, odds: fate.odds, options: FATE_ODDS, select: odds => { fate.odds = odds; } } };
@@ -101,6 +101,8 @@ export class TurnFlow {
         catch {
             return true;
         }
+        if (this.#turn?.stage === 'question' || this.#turn?.stage === 'asking')
+            return false;
         if (this.#recorded(view, context)) {
             // Narrating a settled turn: the narrator must read what the card recorded since the last projection.
             this.#host.project();
@@ -423,6 +425,8 @@ export class TurnFlow {
         const turn = this.#turn;
         if (!turn)
             return;
+        if (turn.stage === 'question')
+            turn.stage = 'handled';
         await this.#generate(turn);
         // Once narration has been requested the message is settled; whatever the guard says next speaks for itself.
         if (this.#host.generate && this.#turn === turn) {
@@ -430,25 +434,40 @@ export class TurnFlow {
             this.#host.changed();
         }
     }
-    async #askOracle() {
-        const turn = this.#turn;
-        if (!turn?.fate)
+    async #askOracle(turn) {
+        if (this.#turn !== turn || turn.stage !== 'question' || !turn.fate)
             return;
         const fate = turn.fate;
+        const current = () => this.#turn === turn && this.#anchor() === turn.anchor;
         turn.stage = 'asking';
         this.#host.changed();
+        let summary;
         try {
-            const summary = await this.#host.mythic.fate(fate.odds, fate.question);
-            this.#host.project();
-            turn.stage = 'handled';
-            turn.message = summary;
-            turn.narrateLabel = 'Narrate';
+            summary = await this.#host.mythic.fate(fate.odds, fate.question);
+        }
+        catch (error) {
+            if (!current())
+                return;
+            turn.stage = 'question';
+            turn.message = `The oracle did not answer: ${error instanceof Error ? error.message : String(error)}`;
             this.#host.changed();
+            return;
+        }
+        if (!current())
+            return;
+        this.#host.project();
+        turn.stage = 'handled';
+        turn.fate = undefined;
+        turn.message = summary;
+        turn.narrateLabel = 'Narrate';
+        this.#host.changed();
+        try {
             await this.#generate(turn);
         }
         catch (error) {
-            turn.stage = 'question';
-            turn.message = `The oracle did not answer: ${error instanceof Error ? error.message : String(error)}`;
+            if (!current())
+                return;
+            turn.message = `Oracle result saved. Retry narration: ${error instanceof Error ? error.message : String(error)}`;
             this.#host.changed();
         }
     }

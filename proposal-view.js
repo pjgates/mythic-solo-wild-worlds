@@ -1,6 +1,6 @@
 import { element, button, select, input, checkbox, form, details, diceMeter, pill } from "./card-controls.js";
-import { HARM_MARKS, HARM_OVERFLOW, harmTargets } from "./declaration-form.js";
-import { prepareAction } from "./action.js";
+import { HARM_MARKS, HARM_OVERFLOW, harmTargets, bindHarmOverflow } from "./declaration-form.js";
+import { prepareAction, assertActionHarm } from "./action.js";
 import { activeClassBonuses } from "./game/minor-character/sheet.js";
 import { sameValue } from "./game/minor-character/events.js";
 import { projectDeclaration } from "./game/minor-character/proposals.js";
@@ -16,6 +16,7 @@ export function describeDeclaration(view, declaration) {
             + ` · base impact ${declaration.baseImpact ?? 'Normal'}${declaration.battery ? ` · Origin Core battery: ${declaration.battery}` : ''}`,
     ];
     try {
+        assertActionHarm(declaration);
         const prepared = prepareAction(view.sheet, declaration);
         lines.push(`Pool ${prepared.pool} · Cuts ${prepared.cuts.total}${prepared.cuts.total > prepared.cuts.precision + prepared.cuts.impact ? ' (mandatory before Overflow)' : ''}`
             + ` · impact ${prepared.impact}${prepared.needsPermission ? ' · permission ruling required' : ''}`);
@@ -38,6 +39,7 @@ export function renderDicePreview(view, declaration) {
     box.className = 'mc-dice-preview';
     let pool = 0, cut = 0, title = '';
     try {
+        assertActionHarm(declaration);
         const prepared = prepareAction(view.sheet, declaration);
         pool = prepared.pool;
         cut = Math.min(pool, prepared.cuts.total);
@@ -127,15 +129,15 @@ export function renderProposal(view, proposal, card) {
     title.className = 'mc-proposal-title';
     article.append(eyebrow, title, renderDicePreview(view, proposal.declaration));
     article.append(renderStakesSummary(view, proposal.declaration.stakes));
+    const mechanics = details('mc-proposal-mechanics', 'How this was read', 'proposal:mechanics');
+    mechanics.append(element('p', proposal.reading));
     if (proposal.reasons.length) {
         const reasons = document.createElement('ul');
         reasons.className = 'mc-proposal-reasons';
         for (const reason of proposal.reasons)
             reasons.append(element('li', reason));
-        article.append(reasons);
+        mechanics.append(reasons);
     }
-    const mechanics = details('mc-proposal-mechanics', 'How this was read', 'proposal:mechanics');
-    mechanics.append(element('p', proposal.reading));
     for (const line of describeDeclaration(view, proposal.declaration))
         mechanics.append(element('p', line));
     const current = proposal.declaration.stakes;
@@ -157,6 +159,7 @@ export function renderProposal(view, proposal, card) {
     target.value = current?.harm?.targetAspectId ?? '';
     const overflow = select(stakesForm, 'Harm overflow choice', HARM_OVERFLOW, 'proposal:overflow');
     overflow.value = current?.harm?.overflowChoice ?? 'injury';
+    bindHarmOverflow(target, overflow);
     const precision = checkbox(stakesForm, 'Voluntary Precision · Cut 1 to target a part or deny an ability', 'proposal:precision');
     precision.checked = !!proposal.declaration.cuts?.precision;
     const impact = checkbox(stakesForm, 'Voluntary Impact · Cut 1 to raise impact one step', 'proposal:impact');
@@ -225,6 +228,7 @@ export function renderProposal(view, proposal, card) {
         accept.disabled = cancel.disabled = true;
         try {
             const declaration = revised();
+            assertActionHarm(declaration);
             const original = projectDeclaration(proposal.declaration);
             if (!sameValue(declaration, original)) {
                 await card.controller.reviseProposal(await card.capture(view.context), proposal.id, declaration);

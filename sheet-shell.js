@@ -1,10 +1,11 @@
 import { renderHistory } from "./history-view.js";
+import { mountLauncher } from "./host-layout.js";
 /** The sheet's own sections, as short tabs that fit a phone. */
 const tabs = [
     ['capabilities', 'Skills'], ['aspects', 'Aspects'], ['life', 'Drives'], ['background-history', 'Story'],
 ];
 const destinations = [['sheet', 'Sheet'], ['cast', 'Cast'], ['campaign', 'Campaign']];
-const titles = { sheet: 'Sera’s sheet', cast: 'Cast', campaign: 'Campaign', settings: 'Play settings' };
+const titles = { sheet: 'Sera’s sheet', cast: 'Cast', campaign: 'Campaign' };
 const svg = (paths) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 export const ICONS = {
     back: svg('<path d="M15 5l-7 7 7 7"/>'),
@@ -22,7 +23,6 @@ export function createSheetShell(launcher, changed = () => { }) {
     panel.innerHTML = `<header class="mc-panel-bar"><h2 id="mc-title" class="mc-visually-hidden">Sera’s sheet</h2>
     <button class="menu_button mc-icon-button" type="button" data-back aria-label="Back to chat">${ICONS.back}</button>
     <nav class="mc-destinations" aria-label="Sera’s panels"></nav>
-    <button class="menu_button mc-icon-button" type="button" data-settings aria-label="Play settings">${ICONS.gear}</button>
     <button class="menu_button mc-icon-button" type="button" data-fullscreen aria-label="Full screen">${ICONS.expand}</button></header>
     <nav role="tablist" aria-label="Character sheet sections"></nav><div class="mc-content"></div>`;
     const content = panel.querySelector('.mc-content');
@@ -30,7 +30,6 @@ export function createSheetShell(launcher, changed = () => { }) {
     const nav = panel.querySelector('.mc-destinations');
     const back = panel.querySelector('[data-back]');
     const expand = panel.querySelector('[data-fullscreen]');
-    const settings = panel.querySelector('[data-settings]');
     const overlay = document.createElement('dialog');
     overlay.id = 'minor-character-fullscreen';
     overlay.setAttribute('aria-labelledby', 'mc-title');
@@ -76,7 +75,6 @@ export function createSheetShell(launcher, changed = () => { }) {
         nav.append(button);
         return button;
     });
-    settings.onclick = () => show(destination === 'settings' ? 'sheet' : 'settings');
     const controls = tabs.map(([id, label]) => {
         const button = document.createElement('button');
         button.type = 'button';
@@ -106,7 +104,9 @@ export function createSheetShell(launcher, changed = () => { }) {
             else
                 button.removeAttribute('aria-current');
         }
-        settings.setAttribute('aria-pressed', String(destination === 'settings'));
+        const identity = content.querySelector('.mc-identity');
+        if (identity && identity.nextElementSibling !== tablist)
+            identity.after(tablist);
         controls.forEach((button, index) => {
             const selected = tabs[index][0] === active;
             button.setAttribute('aria-selected', String(selected));
@@ -171,12 +171,12 @@ export function createSheetShell(launcher, changed = () => { }) {
         launcher.setAttribute('aria-expanded', String(!panel.hidden));
         castLauncher.setAttribute('aria-expanded', String(!panel.hidden && destination === 'cast'));
         const composer = document.querySelector('#form_sheld');
-        if (composer && launcher.parentElement !== composer)
-            composer.prepend(launcher);
+        mountLauncher(composer, launcher);
         applyTabs();
         restorePosition();
     }
     function show(next = 'sheet') {
+        window.dispatchEvent(new CustomEvent('solo-play-panel-open', { detail: 'minor-character' }));
         if (destination !== next) {
             rememberPosition();
             destination = next;
@@ -187,7 +187,7 @@ export function createSheetShell(launcher, changed = () => { }) {
         if (destination === 'sheet')
             controls[tabs.findIndex(([id]) => id === active)].focus();
         else
-            (destination === 'settings' ? settings : destinationButtons.find(button => button.dataset.destination === destination)).focus();
+            destinationButtons.find(button => button.dataset.destination === destination).focus();
     }
     function setFullscreen(enabled) {
         if (enabled === fullscreen)
@@ -216,13 +216,14 @@ export function createSheetShell(launcher, changed = () => { }) {
     }
     overlay.addEventListener('cancel', event => { event.preventDefault(); setFullscreen(false); });
     expand.onclick = () => setFullscreen(true);
-    function close() {
+    function close(restoreFocus = true) {
         if (fullscreen)
             setFullscreen(false);
         rememberPosition();
         panel.hidden = true;
         mount();
-        launcher.focus();
+        if (restoreFocus)
+            launcher.focus();
     }
     const backToSheet = () => { if (fullscreen)
         setFullscreen(false);
@@ -238,7 +239,11 @@ export function createSheetShell(launcher, changed = () => { }) {
     launcher.onclick = () => { if (!panel.hidden && !fullscreen)
         close();
     else
-        show(destination === 'settings' ? 'sheet' : destination); };
+        show(destination); };
+    window.addEventListener('solo-play-panel-open', event => {
+        if (event.detail !== 'minor-character' && !panel.hidden)
+            close(false);
+    });
     castLauncher.onclick = () => show('cast');
     return { get destination() { return destination; }, content, show, close, mount, setFullscreen, renderHistory: showHistory };
 }

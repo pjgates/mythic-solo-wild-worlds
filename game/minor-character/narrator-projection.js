@@ -88,7 +88,9 @@ function describeEntry(entry, sheet) {
             return pieces.join('; ');
         }
         case 'stakes-adjudicated': {
-            const pieces = [`Ruling on the pending result: ${event.command.note}`];
+            const pieces = [event.twist?.kind === 'bank'
+                    ? 'Twist banked for later in this scene; it establishes no fiction until explicitly spent.'
+                    : `Ruling on the pending result: ${event.command.note}`];
             if (event.harmEvent)
                 pieces.push(describeHarm(event.harmEvent, sheet));
             if (event.twist)
@@ -108,7 +110,7 @@ function describeEntry(entry, sheet) {
 function describeTwist(twist) {
     switch (twist.kind) {
         case 'note': return twist.text;
-        case 'bank': return `banked for later (${twist.description})`;
+        case 'bank': return 'banked, not yet part of the fiction';
         case 'critical': return `critical success, impact ${twist.elevatedImpact}`;
         case 'counter': return `counter against ${twist.targetName}`;
         case 'mystery-discovery': return `mystery discovery: ${twist.name}`;

@@ -9,6 +9,7 @@ function requireHistory(valid) {
         throw new Error('Unsupported or contradictory saved history; original data retained.');
 }
 const VALID_EVENT_KINDS = new Set([
+    'injury-described',
     'memory-conflict-reviewed',
     'scene-event-corrected',
     'memory-outcome-recorded',

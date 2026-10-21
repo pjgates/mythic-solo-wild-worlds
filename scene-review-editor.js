@@ -25,13 +25,35 @@ export function appendSceneReviewEditor(root, view, draft, session) {
         field(parent, label, key, input);
     }
     function choice(parent, label, key, values, options, multiple, change) {
+        if (multiple) {
+            const group = document.createElement('fieldset');
+            group.className = 'mc-review-checks';
+            const legend = document.createElement('legend');
+            legend.textContent = label;
+            group.append(legend);
+            for (const [id, name] of options) {
+                const wrapper = document.createElement('label');
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.value = id;
+                input.checked = values.includes(id);
+                input.dataset.reviewField = `${key}:${id}`;
+                input.onchange = () => write(() => change([...group.querySelectorAll('input')].filter(control => control.checked).map(control => control.value)));
+                wrapper.append(input, document.createTextNode(name));
+                group.append(wrapper);
+            }
+            if (!options.length) {
+                const empty = document.createElement('p');
+                empty.textContent = 'None available.';
+                group.append(empty);
+            }
+            parent.append(group);
+            return;
+        }
         const input = document.createElement('select');
-        input.multiple = multiple;
-        if (multiple)
-            input.size = Math.min(4, Math.max(2, options.length));
         for (const [id, name] of options)
             input.add(new Option(name, id, false, values.includes(id)));
-        input.onchange = () => write(() => change([...input.selectedOptions].map(option => option.value)));
+        input.onchange = () => write(() => change([input.value]));
         field(parent, label, key, input);
     }
     function peopleField(parent, label, key, values, change) {
@@ -52,7 +74,7 @@ export function appendSceneReviewEditor(root, view, draft, session) {
     prose(form, 'Scene summary', 'summary', proposal.summary, value => { proposal.summary = value; });
     peopleField(form, 'Participants', 'participants', proposal.participants, value => { proposal.participants = value; });
     const hint = document.createElement('p');
-    hint.textContent = 'Choose multiple people or sources with the standard multi-select controls. Knowledge additions are explicit suggestions.';
+    hint.textContent = 'Select the people and sources that apply. Being present does not grant knowledge; knowledge additions are explicit suggestions.';
     form.append(hint);
     proposal.events.forEach((event, index) => {
         const row = document.createElement('fieldset'), legend = document.createElement('legend');

@@ -5,7 +5,7 @@
  * contrast on a light theme too. Nothing here styles host chat outside the extension's own elements,
  * except dimming #chat while the play card asks for a decision on a phone.
  */
-:is(#minor-character-sheet, #minor-character-actions, #minor-character-launch, #minor-character-fullscreen) {
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-launch, #minor-character-fullscreen, #minor-character-settings) {
   --mc-accent: var(--customThemeColor, #5fa8f0);
   --mc-gold: var(--customThemeColor2, #e8b86a);
   --mc-panel: var(--SmartThemeBlurTintColor, #0f141c);
@@ -30,61 +30,61 @@
   color: var(--mc-text);
   font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
-:is(#minor-character-sheet, #minor-character-actions) { background: var(--mc-panel); }
-:is(#minor-character-sheet, #minor-character-actions) *, :is(#minor-character-sheet, #minor-character-actions) *::before { box-sizing: border-box; }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) { background: var(--mc-panel); }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) *, :is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) *::before { box-sizing: border-box; }
 
 /* Utilities */
-:is(#minor-character-sheet, #minor-character-actions) .mc-visually-hidden {
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-visually-hidden {
   position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
 }
-:is(#minor-character-sheet, #minor-character-actions) [hidden], #minor-character-sheet[hidden], #minor-character-actions[hidden] { display: none !important; }
-:is(#minor-character-sheet, #minor-character-actions) .mc-hint { color: var(--mc-muted); font-size: 13px; margin: 4px 0; }
-:is(#minor-character-sheet, #minor-character-actions) .mc-notice {
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) [hidden], #minor-character-sheet[hidden], #minor-character-actions[hidden] { display: none !important; }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-hint { color: var(--mc-muted); font-size: 13px; margin: 4px 0; }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-notice {
   margin: 8px 0; padding: 8px 10px; border-radius: var(--mc-radius); border: 1px solid var(--mc-gold); background: var(--mc-gold-soft); font-size: 14px;
 }
-:is(#minor-character-sheet, #minor-character-actions) .mc-prose,
-:is(#minor-character-sheet, #minor-character-actions) .mc-prose-input { font-family: var(--mc-serif); font-size: 17px; line-height: 1.5; }
-:is(#minor-character-sheet, #minor-character-actions) p { margin: 6px 0; }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-prose,
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-prose-input { font-family: var(--mc-serif); font-size: 17px; line-height: 1.5; }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) p { margin: 6px 0; }
 
 /* Controls */
-:is(#minor-character-sheet, #minor-character-actions) :where(button, input:not([type="checkbox"]):not([type="radio"]), select, textarea),
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) :where(button, input:not([type="checkbox"]):not([type="radio"]), select, textarea),
 #minor-character-launch {
   color: var(--mc-text); background: var(--mc-raised); font: inherit;
   border: 1px solid var(--mc-control-border); border-radius: var(--mc-radius);
   min-height: 44px; padding: 8px 12px; margin: 0;
 }
-:is(#minor-character-sheet, #minor-character-actions) :is(input, select, textarea) { width: 100%; max-width: 100%; font-size: 16px; }
-:is(#minor-character-sheet, #minor-character-actions) button { min-width: 44px; cursor: pointer; font-weight: 600; }
-:is(#minor-character-sheet, #minor-character-actions) button:disabled { cursor: default; opacity: .55; }
-:is(#minor-character-sheet, #minor-character-actions) :where(button:enabled:hover) { border-color: var(--mc-accent); }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) :is(input, select, textarea) { width: 100%; max-width: 100%; font-size: 16px; }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) button { min-width: 44px; cursor: pointer; font-weight: 600; }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) button:disabled { cursor: default; opacity: .55; }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) :where(button:enabled:hover) { border-color: var(--mc-accent); }
 :is(#minor-character-sheet, #minor-character-actions, #minor-character-launch) :focus-visible,
 #minor-character-launch:focus-visible { outline: 2px solid var(--mc-accent); outline-offset: 2px; }
-:is(#minor-character-sheet, #minor-character-actions) summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 6px; }
-:is(#minor-character-sheet, #minor-character-actions) label { display: grid; gap: 4px; margin: 8px 0; font-size: 14px; color: var(--mc-muted); }
-:is(#minor-character-sheet, #minor-character-actions) label > :is(input, select, textarea) { color: var(--mc-text); }
-:is(#minor-character-sheet, #minor-character-actions) .mc-checkbox { display: flex; align-items: center; gap: 12px; min-height: 44px; color: var(--mc-text); }
-:is(#minor-character-sheet, #minor-character-actions) input[type="checkbox"] { width: 22px; height: 22px; flex: 0 0 22px; margin: 0; accent-color: var(--mc-accent); }
-:is(#minor-character-sheet, #minor-character-actions) .mc-primary {
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 6px; }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) label { display: grid; gap: 4px; margin: 8px 0; font-size: 14px; color: var(--mc-muted); }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) label > :is(input, select, textarea) { color: var(--mc-text); }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-checkbox { display: flex; align-items: center; gap: 12px; min-height: 44px; color: var(--mc-text); }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) input[type="checkbox"] { width: 22px; height: 22px; flex: 0 0 22px; margin: 0; accent-color: var(--mc-accent); }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-primary {
   background: var(--mc-accent); color: var(--mc-panel); border-color: var(--mc-accent); font-weight: 700; min-height: 50px;
 }
-:is(#minor-character-sheet, #minor-character-actions) .mc-primary:enabled:hover { filter: brightness(1.08); }
-:is(#minor-character-sheet, #minor-character-actions) .mc-icon-button {
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-primary:enabled:hover { filter: brightness(1.08); }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-icon-button {
   width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border-color: transparent;
 }
-:is(#minor-character-sheet, #minor-character-actions) .mc-link-button {
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-link-button {
   background: transparent; border: 0; padding: 0 2px; color: var(--mc-accent-text); font-weight: 500; min-height: 44px;
 }
-:is(#minor-character-sheet, #minor-character-actions) .mc-actions { display: grid; gap: 8px; margin: 10px 0; }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-actions { display: grid; gap: 8px; margin: 10px 0; }
 
 /* Pills */
-:is(#minor-character-sheet, #minor-character-actions) .mc-pill {
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-pill {
   display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px;
   border: 1px solid var(--mc-control-border); font-size: 13px; font-weight: 600; line-height: 1.5;
 }
-:is(#minor-character-sheet, #minor-character-actions) :is(.mc-pill-class, .mc-class-pill) { border-color: var(--mc-accent); background: var(--mc-accent-soft); color: var(--mc-accent-text); }
-:is(#minor-character-sheet, #minor-character-actions) .mc-pill-cut { border-color: var(--mc-gold); color: var(--mc-gold-text); }
-:is(#minor-character-sheet, #minor-character-actions) .mc-pill-twist { border-color: var(--mc-twist); background: var(--mc-twist-soft); color: var(--mc-twist); }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) :is(.mc-pill-class, .mc-class-pill) { border-color: var(--mc-accent); background: var(--mc-accent-soft); color: var(--mc-accent-text); }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-pill-cut { border-color: var(--mc-gold); color: var(--mc-gold-text); }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-pill-twist { border-color: var(--mc-twist); background: var(--mc-twist-soft); color: var(--mc-twist); }
 #minor-character-sheet .mc-element-pill { color: #0f141c; background: var(--mc-element); border-color: transparent; }
 #minor-character-sheet [data-element="Sun"] { --mc-element: #E5634B; color: #fff; }
 #minor-character-sheet [data-element="Earth"] { --mc-element: #C49A5E; }
@@ -96,26 +96,19 @@
 #minor-character-sheet [data-element=""] { background: transparent; color: var(--mc-muted); border: 1px dashed var(--mc-control-border); }
 
 /* Tracks: boxes are drawn, never typed; marked is gold, burned is a red-tinted cross. */
-:is(#minor-character-sheet, #minor-character-actions) .mc-boxes { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; align-items: center; }
-:is(#minor-character-sheet, #minor-character-actions) .mc-pip {
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-boxes { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; align-items: center; }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-pip {
   display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex: 0 0 20px;
   border: 2px solid var(--mc-control-border); border-radius: 5px; font-size: 13px; font-weight: 800; color: transparent;
 }
-:is(#minor-character-sheet, #minor-character-actions) .mc-pip.mc-marked { background: var(--mc-gold); border-color: var(--mc-gold); }
-:is(#minor-character-sheet, #minor-character-actions) .mc-pip.mc-burned { border-color: var(--mc-disaster); color: var(--mc-disaster); background: color-mix(in srgb, var(--mc-disaster) 18%, var(--mc-panel)); }
-:is(#minor-character-sheet, #minor-character-actions) .mc-boxes-small { gap: 3px; margin: 4px 0 0; }
-:is(#minor-character-sheet, #minor-character-actions) .mc-boxes-small .mc-pip { width: 11px; height: 11px; flex-basis: 11px; border-width: 1.5px; border-radius: 3px; font-size: 0; }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-pip.mc-marked { background: var(--mc-gold); border-color: var(--mc-gold); }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-pip.mc-burned { border-color: var(--mc-disaster); color: var(--mc-disaster); background: color-mix(in srgb, var(--mc-disaster) 18%, var(--mc-panel)); }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-boxes-small { gap: 3px; margin: 4px 0 0; }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) .mc-boxes-small .mc-pip { width: 11px; height: 11px; flex-basis: 11px; border-width: 1.5px; border-radius: 3px; font-size: 0; }
 #minor-character-sheet .mc-track-full { display: block; color: var(--mc-muted); font-size: 12.5px; }
 #minor-character-sheet .mc-sheet-body:not(.mc-editing) .mc-track-summary { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 #minor-character-sheet .mc-track-summary { display: block; color: var(--mc-gold-text); font-size: 12.5px; }
 
-/* Composer launcher: one round button with Sera's initials. */
-#minor-character-launch {
-  position: static; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
-  width: 40px; height: 40px; min-height: 40px; padding: 0; margin: 2px 6px; border-radius: 50%;
-  border: 2px solid var(--mc-accent); background: var(--mc-raised); font-size: 13px; font-weight: 800; letter-spacing: .02em; cursor: pointer;
-}
-#minor-character-launch[aria-expanded="true"] { background: var(--mc-accent); color: var(--mc-panel); }
 #minor-character-cast-launch { display: none; }
 
 /* The panel */
@@ -131,7 +124,7 @@
   padding: 3px; border-radius: 12px; background: var(--mc-raised);
 }
 #minor-character-sheet .mc-destinations button {
-  white-space: nowrap; overflow-wrap: normal; min-height: 38px; padding: 4px 6px; border: 0; border-radius: 9px; background: transparent; color: var(--mc-muted); font-weight: 500; font-size: 14px;
+  white-space: nowrap; overflow-wrap: normal; min-height: 44px; padding: 4px 6px; border: 0; border-radius: 9px; background: transparent; color: var(--mc-muted); font-weight: 500; font-size: 14px;
 }
 #minor-character-sheet .mc-destinations button[aria-current="page"] { background: var(--mc-raised-2); color: var(--mc-text); font-weight: 700; }
 #minor-character-sheet [data-settings][aria-pressed="true"] { color: var(--mc-accent-text); background: var(--mc-accent-soft); }
@@ -143,6 +136,7 @@
 }
 #minor-character-sheet [role="tab"][aria-selected="true"] { color: var(--mc-text); font-weight: 700; box-shadow: inset 0 -3px var(--mc-accent); }
 #minor-character-sheet .mc-content { overflow: auto; overscroll-behavior: contain; padding: 0 16px 28px; flex: 1; min-height: 0; }
+#minor-character-sheet .mc-content [role="tablist"] { position: sticky; top: 0; z-index: 2; margin: 12px -16px 0; background: var(--mc-panel); }
 #minor-character-sheet .mc-panel-status { margin: 8px 0 0; font-size: 12.5px; color: var(--mc-muted); }
 #minor-character-sheet .mc-panel-status:empty { display: none; }
 #minor-character-sheet .mc-campaign-setup { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
@@ -285,11 +279,11 @@
 #minor-character-sheet .mc-play-controls label { margin: 0; }
 #minor-character-sheet .mc-play-controls .mc-actions { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 #minor-character-sheet :is(.mc-play-settings, [aria-label="Scene GM"]) :is(input:not([type="checkbox"]), select) { min-height: 48px; }
-#minor-character-sheet .mc-play-settings .mc-role-note { margin: 8px 0 0; color: var(--mc-muted); font-size: 14px; }
-#minor-character-sheet .mc-play-settings .mc-triage { margin: 8px 0 12px; padding: 0 0 8px; border-bottom: 1px solid var(--mc-hairline); }
-#minor-character-sheet .mc-play-settings .mc-triage h4 { margin: 12px 0 0; }
-#minor-character-sheet .mc-play-settings .mc-triage-key-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 4px; }
-#minor-character-sheet .mc-play-settings [data-triage-status]:empty { display: none; }
+:is(#minor-character-sheet, #minor-character-settings) .mc-play-settings .mc-role-note { margin: 8px 0 0; color: var(--mc-muted); font-size: 14px; }
+:is(#minor-character-sheet, #minor-character-settings) .mc-play-settings .mc-triage { margin: 8px 0 12px; padding: 0 0 8px; border-bottom: 1px solid var(--mc-hairline); }
+:is(#minor-character-sheet, #minor-character-settings) .mc-play-settings .mc-triage h4 { margin: 12px 0 0; }
+:is(#minor-character-sheet, #minor-character-settings) .mc-play-settings .mc-triage-key-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 4px; }
+:is(#minor-character-sheet, #minor-character-settings) .mc-play-settings [data-triage-status]:empty { display: none; }
 #minor-character-sheet [aria-label="Scene GM"] > h3 { display: none; }
 #minor-character-sheet [aria-label="Scene GM"] .mc-actions { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 #minor-character-sheet [aria-label="Scene GM"] [data-gm-request] { background: var(--mc-accent); color: var(--mc-panel); border-color: var(--mc-accent); }
@@ -444,6 +438,17 @@
 #minor-character-actions .mc-receipt details p, #minor-character-actions .mc-record-ids { font-size: 13px; color: var(--mc-muted); }
 #minor-character-actions .mc-harm-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--mc-raised); }
 #minor-character-actions .mc-harm-line p { margin: 0; font-weight: 600; font-size: 14px; }
+#minor-character-actions .mc-injury-wording { padding: 16px 0 4px; margin-top: 12px; border-top: 1px solid var(--mc-hairline); overflow-wrap: anywhere; }
+#minor-character-actions .mc-injury-wording[hidden] { display: none; }
+#minor-character-actions .mc-injury-wording h4 { margin: 0 0 6px; font-size: 16px; }
+#minor-character-actions .mc-injury-wording h5 { margin: 14px 0 6px; font: 600 22px/1.2 var(--mc-serif); }
+#minor-character-actions .mc-injury-wording .mc-prose { margin: 0 0 12px; }
+#minor-character-actions .mc-injury-wording label { display: grid; gap: 6px; margin-top: 12px; }
+#minor-character-actions .mc-injury-wording :is(input, textarea) { box-sizing: border-box; width: 100%; min-width: 0; }
+#minor-character-actions .mc-injury-wording textarea { resize: vertical; }
+@media (min-width: 480px) {
+  #minor-character-actions .mc-injury-wording .mc-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 #minor-character-actions .mc-pending-stakes { display: grid; gap: 10px; margin-top: 8px; }
 #minor-character-actions .mc-stakes-cost { display: grid; gap: 8px; }
 #minor-character-actions .mc-stakes-cost label { margin: 0; }
@@ -511,21 +516,104 @@
 
 @media (forced-colors: active) {
   #minor-character-sheet [role="tab"][aria-selected="true"], #minor-character-sheet .mc-destinations [aria-current="page"] { text-decoration: underline; }
-  :is(#minor-character-sheet, #minor-character-actions) :is(.mc-pip, .mc-die, .mc-die-face, .mc-track-editor::before) { forced-color-adjust: none; }
+  :is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) :is(.mc-pip, .mc-die, .mc-die-face, .mc-track-editor::before) { forced-color-adjust: none; }
   #minor-character-actions .mc-choice-option:has(input:checked) { outline: 2px solid Highlight; }
   #minor-character-sheet .mc-element-pill { border-color: CanvasText; }
 }
 
 /* Disclosures: a drawn chevron, since flex summaries lose the browser's marker. */
-:is(#minor-character-sheet, #minor-character-actions) summary { list-style: none; }
-:is(#minor-character-sheet, #minor-character-actions) summary::-webkit-details-marker { display: none; }
-:is(#minor-character-sheet, #minor-character-actions) summary::before {
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) summary { list-style: none; }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) summary::-webkit-details-marker { display: none; }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) summary::before {
   content: ''; flex: 0 0 auto; width: 7px; height: 7px; margin: 0 4px 0 2px; border: solid currentColor; border-width: 0 2px 2px 0;
   transform: rotate(-45deg); transition: transform .12s ease-out; opacity: .8;
 }
-:is(#minor-character-sheet, #minor-character-actions) details[open] > summary::before { transform: rotate(45deg); }
-@media (prefers-reduced-motion: reduce) { :is(#minor-character-sheet, #minor-character-actions) summary::before { transition: none; } }
+:is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) details[open] > summary::before { transform: rotate(45deg); }
+@media (prefers-reduced-motion: reduce) { :is(#minor-character-sheet, #minor-character-actions, #minor-character-settings) summary::before { transition: none; } }
 /* While a proposal is up, its own eyebrow and title say what the header line would. */
 #minor-character-actions.mc-card-modal:has(article.mc-proposal) > .mc-card-header { display: none; }
 #minor-character-actions.mc-card-modal:has(article.mc-proposal) { padding-top: 14px; }
 #minor-character-sheet .mc-edit-footer textarea { font-weight: 400; }
+
+/* Settings remain in the host Extensions menu; the same DOM nodes survive host remounts. */
+.solo-extension-settings { margin-block: 12px; border-block-end: 1px solid var(--SmartThemeBorderColor, #637083); }
+.solo-extension-settings > summary { min-height: 48px; padding: 8px; cursor: pointer; font-weight: 600; }
+.solo-settings-body { display: grid; gap: 16px; padding: 8px 12px 20px; min-width: 0; }
+.solo-settings-body > section { min-width: 0; }
+.solo-play-launchers { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; }
+/* Both launchers use the same secondary-control treatment, including when installed alone. */
+#form_sheld .solo-play-launchers > :is(#minor-character-launch, #mythic-gme-launch) {
+  --solo-text: var(--SmartThemeBodyColor, #d6dce6);
+  --solo-panel: var(--SmartThemeBlurTintColor, #0f141c);
+  --solo-accent: var(--customThemeColor, #5fa8f0);
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  box-sizing: border-box; width: auto; min-width: 44px; height: 44px; min-height: 44px;
+  margin: 0; padding: 8px 12px; border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--solo-text) 45%, var(--solo-panel));
+  background: color-mix(in srgb, var(--solo-text) 6%, var(--solo-panel)); color: var(--solo-text);
+  font: 600 14px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif; letter-spacing: normal;
+  text-shadow: none; box-shadow: none; opacity: 1; cursor: pointer; touch-action: manipulation;
+}
+#form_sheld .solo-play-launchers > :is(#minor-character-launch, #mythic-gme-launch)[aria-expanded="true"] {
+  border-color: var(--solo-accent);
+  background: color-mix(in srgb, var(--solo-accent) 16%, var(--solo-panel));
+  color: color-mix(in srgb, var(--solo-accent) 70%, var(--solo-text));
+}
+@media (hover: hover) {
+  #form_sheld .solo-play-launchers > :is(#minor-character-launch, #mythic-gme-launch):hover { border-color: var(--solo-accent); }
+}
+#form_sheld .solo-play-launchers > :is(#minor-character-launch, #mythic-gme-launch):focus-visible {
+  outline: 2px solid var(--solo-accent); outline-offset: 2px;
+}
+
+/* The host retains its controls and theme; solo play supplies a compact reading/composing rhythm. */
+#sheld.mc-play-layout { --mc-space: 4px; }
+#sheld.mc-play-layout #chat { padding: 12px; }
+#sheld.mc-play-layout #chat .mes {
+  width: auto; max-width: 75ch; margin: 0 0 12px; padding: 16px;
+  border: 1px solid var(--SmartThemeBorderColor); border-radius: 14px;
+  background: color-mix(in srgb, var(--SmartThemeBodyColor) 4%, var(--SmartThemeBlurTintColor));
+}
+#sheld.mc-play-layout #chat .mes[is_user="true"] { margin-inline-start: 24px; background: color-mix(in srgb, var(--SmartThemeBodyColor) 7%, var(--SmartThemeBlurTintColor)); }
+#sheld.mc-play-layout #chat .mes_text { font-family: 'Iowan Old Style', 'Palatino Linotype', Charter, Georgia, serif; line-height: 1.6; padding-inline-start: 0; overflow-wrap: anywhere; }
+#sheld.mc-play-layout #form_sheld { padding: 8px; border-block-start: 1px solid var(--SmartThemeBorderColor); }
+#sheld.mc-play-layout #send_form { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 0; border: 0; background: transparent; }
+#sheld.mc-play-layout #nonQRFormItems { display: flex; align-items: flex-end; gap: 8px; }
+#sheld.mc-play-layout #leftSendForm { display: flex; flex-direction: row; align-items: center; gap: 4px; width: max-content; min-width: max-content; max-width: none; height: auto; flex: 0 0 auto; }
+#sheld.mc-play-layout .solo-play-launchers { width: auto; height: auto; font: 14px/1.2 system-ui, sans-serif; }
+#sheld.mc-play-layout .solo-play-launchers > button { font-size: 14px; line-height: 1.2; flex: 0 0 auto; }
+#sheld.mc-play-layout #rightSendForm { display: flex; align-items: center; flex: 0 0 auto; }
+#sheld.mc-play-layout #send_textarea { flex: 1 1 0; min-width: 0; width: 0; min-height: 48px; padding: 12px; margin: 0; border: 1px solid var(--SmartThemeBorderColor); border-radius: 14px; font-family: system-ui, sans-serif; }
+#sheld.mc-play-layout #send_textarea:focus-visible { outline: 2px solid var(--customThemeColor, #5fa8f0); outline-offset: 2px; }
+#sheld.mc-play-layout #minor-character-actions { margin: 4px 8px; }
+#sheld.mc-play-layout #chat ::selection { background: color-mix(in srgb, var(--customThemeColor, #5fa8f0) 35%, transparent); }
+@media (max-width: 600px) {
+  #sheld.mc-play-layout #chat { padding: 8px; }
+  #sheld.mc-play-layout #chat .mes { padding: 12px; }
+  #sheld.mc-play-layout #nonQRFormItems { flex-wrap: wrap; gap: 4px; }
+  #sheld.mc-play-layout #leftSendForm { order: 1; flex-basis: 100%; min-height: 44px; }
+  #sheld.mc-play-layout #send_textarea { order: 2; }
+  #sheld.mc-play-layout #rightSendForm { order: 3; }
+  #sheld.mc-play-layout #form_sheld { padding-bottom: max(4px, env(safe-area-inset-bottom)); }
+}
+
+#leftSendForm > .solo-play-launchers { width: auto; height: auto; opacity: 1; font: 14px/1.2 system-ui, sans-serif; }
+
+/* Saved results are opened explicitly; banked possibilities stay compact between turns. */
+#minor-character-actions .mc-card-toggle { min-height: 44px; padding-inline: 10px; flex-shrink: 0; }
+#minor-character-actions .mc-banked-disclosure > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--mc-muted); }
+#minor-character-actions .mc-banked-disclosure:not([open]) { margin-top: 2px; }
+
+/* Scene review reads as a summary; editing and supporting material are deliberate disclosures. */
+.mc-scene-review > details { border-top: 1px solid var(--mc-hairline); padding-block: 8px; }
+.mc-scene-review summary { min-height: 44px; padding-block: 10px; cursor: pointer; font-weight: 600; }
+.mc-scene-review .mc-review-checks { display: grid; gap: 4px; padding: 8px 0; border: 0; }
+.mc-scene-review .mc-review-checks label { display: flex; align-items: center; gap: 10px; min-height: 44px; overflow-wrap: anywhere; }
+.mc-scene-review .mc-review-checks input { flex: 0 0 auto; width: 20px; height: 20px; }
+.mc-scene-review .mc-review-actions { position: sticky; bottom: 0; z-index: 1; padding: 12px 0 max(12px, env(safe-area-inset-bottom)); background: var(--mc-panel); border-top: 1px solid var(--mc-hairline); }
+.mc-scene-review .mc-mythic-scene-end label { display: flex; align-items: center; justify-content: flex-start; gap: 10px; min-height: 44px; }
+.mc-scene-review .mc-mythic-scene-end input { flex: 0 0 auto; width: 20px; height: 20px; margin: 0; }
+@media (max-width: 600px) {
+  .mc-scene-review .mc-review-actions { position: static; display: grid; grid-template-columns: 1fr; }
+  .mc-scene-review .mc-review-actions button { min-height: 48px; white-space: normal; }
+}

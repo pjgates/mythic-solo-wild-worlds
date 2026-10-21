@@ -4,6 +4,7 @@ import { renderPendingStakes, renderBankedTwists } from "./stakes-view.js";
 import { renderProposal } from "./proposal-view.js";
 import { renderReceipt } from "./history-view.js";
 import { describeTriage } from "./game/minor-character/proposals.js";
+import { renderInjurySuggestions } from "./injury-view.js";
 const ODDS_LABELS = { certain: 'Certain', 'nearly-certain': 'Nearly certain', 'very-likely': 'Very likely',
     likely: 'Likely', 'fifty-fifty': '50/50', unlikely: 'Unlikely', 'very-unlikely': 'Very unlikely', 'nearly-impossible': 'Nearly impossible', impossible: 'Impossible' };
 const latestTriage = (view) => view.proposal ? view.proposal.triage : view.turns.at(-1)?.triage;
@@ -23,7 +24,7 @@ function describeHarm(view, harm) {
     if (harm.burnedBoxes.length)
         parts.push(`${harm.burnedBoxes.length} burned`);
     if (harm.createdInjury)
-        parts.push(`injury: ${harm.createdInjury.name}`);
+        parts.push(`injury: ${view.character.conditions.find(c => c.id === harm.createdInjury.id)?.name ?? harm.createdInjury.name}`);
     return `${parts.join(' · ')}.`;
 }
 /** Harm as it landed: the sentence and, when an Aspect absorbed it, that Aspect's track as it stands now. */
@@ -56,7 +57,7 @@ function summarize(view, latest) {
     if (!latest?.receipt)
         return 'No rolls this scene';
     const r = latest.receipt;
-    return `${r.command.action.description} — ${r.result.outcome}${r.result.twist ? ' + Twist' : ''}`;
+    return `${r.result.outcome}${r.result.twist ? ' + Twist' : ''} · ${r.command.action.description}`;
 }
 /** The quieter second line: where the campaign stands, so a phone sees Scene, Chaos and Exposure without the sheet. */
 function standing(view, chaos) {
@@ -79,12 +80,12 @@ export function renderActions(root, controller, capture, ready, flow = {}) {
         cards.delete(root);
         return;
     }
-    const latest = view.history.slice().reverse().find(entry => entry.receipt);
+    const latest = view.history.slice().reverse().find(entry => entry.receipt && entry.sceneId === view.play.scene.id);
     const scope = JSON.stringify([view.context.campaignId, view.context.branchId, view.play.scene.id,
         view.proposal?.id ?? null, view.pendingManual, latest?.operationId ?? null]);
     // Collapsed by default, even before the first roll: on a phone the transcript and composer come first.
     const state = previous?.scope === scope ? { ...previous, values: { ...previous.values, ...typed } }
-        : { scope, expanded: false, values: {} };
+        : { scope, expanded: false, receiptOpen: false, values: {} };
     cards.set(root, state);
     const status = element('p', flow.message ?? '');
     status.className = 'mc-card-status';
@@ -93,7 +94,10 @@ export function renderActions(root, controller, capture, ready, flow = {}) {
     const settled = !view.pendingManual && !view.proposal;
     const showForm = settled && state.expanded;
     // Live choices (oracle, scene check, narrate) count as expanded so the primary button is never clipped.
-    const expanded = showForm || !settled || !!flow.choices?.length || !!flow.fate;
+    const liveDecision = !!view.proposal || !!view.pendingManual || !!flow.choices?.length || !!flow.fate;
+    if (liveDecision || showForm)
+        state.receiptOpen = false;
+    const expanded = state.receiptOpen || showForm || !settled || !!flow.choices?.length || !!flow.fate || !!flow.injuries?.item;
     const header = element('header');
     header.className = 'mc-card-header';
     const dot = element('span');
@@ -107,6 +111,12 @@ export function renderActions(root, controller, capture, ready, flow = {}) {
     where.className = 'mc-card-standing';
     lines.append(summary, where);
     header.append(dot, lines);
+    if (settled && latest && !liveDecision && !showForm) {
+        const inspect = button(state.receiptOpen ? 'Close result' : 'Last roll', 'menu_button mc-card-toggle');
+        inspect.setAttribute('aria-expanded', String(state.receiptOpen));
+        inspect.onclick = () => { state.receiptOpen = !state.receiptOpen; renderActions(root, controller, capture, ready, flow); };
+        header.append(inspect);
+    }
     // A flow choice that already says Declare… is the one way into the form; a second Declare button beside it would only confuse.
     const declareOffered = !!flow.choices?.some(choice => choice.label.startsWith('Declare'));
     if (settled && (showForm || !declareOffered)) {
@@ -162,7 +172,7 @@ export function renderActions(root, controller, capture, ready, flow = {}) {
         if (!entry.receipt)
             continue;
         const pending = view.pendingManual === entry.operationId;
-        if (!pending && (entry !== latest || !expanded))
+        if (!pending && (entry !== latest || !state.receiptOpen))
             continue;
         const receipt = renderReceipt(entry.receipt);
         receipt.classList.toggle('mc-pending', pending);
@@ -176,15 +186,25 @@ export function renderActions(root, controller, capture, ready, flow = {}) {
         root.append(receipt);
     }
     const twists = renderBankedTwists(view, card);
-    if (twists)
-        root.append(twists);
+    if (twists) {
+        const disclosure = element('details');
+        disclosure.className = 'mc-banked-disclosure';
+        disclosure.dataset.draft = 'banked:open';
+        const count = view.bankedTwists.filter(twist => !twist.spent && twist.sceneId === view.play.scene.id).length;
+        disclosure.append(element('summary', `${count} banked Twist${count === 1 ? '' : 's'}`), twists);
+        root.append(disclosure);
+    }
     if (showForm)
         root.append(renderDeclarationForm(view, card));
     if (showForm && flow.expandedChoices?.length)
         root.append(choiceList(flow.expandedChoices, 'mc-flow-secondary'));
+    if (flow.injuries)
+        root.append(renderInjurySuggestions(flow.injuries));
     root.classList.toggle('mc-card-expanded', expanded);
     // Something to decide (a proposal, a pending result, the declaration) lifts the card over the dimmed chat on a phone.
     root.classList.toggle('mc-card-modal', !!view.proposal || !!view.pendingManual || showForm);
     restoreDrafts(root, state.values);
+    for (const control of root.querySelectorAll('[data-harm-overflow]'))
+        control.dispatchEvent(new Event('mc-restored'));
     root.querySelector('form.mc-action-declaration')?.dispatchEvent(new Event('mc-restored'));
 }

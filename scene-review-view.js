@@ -4,6 +4,7 @@ const text = (tag, value) => {
     element.textContent = value;
     return element;
 };
+const editStates = new WeakMap();
 const statuses = { established: 'Established fact', recollection: 'Nathan’s recollection', unconfirmed: 'Unconfirmed claim' };
 const sections = { overview: 'Overview', personality: 'Personality', background: 'Background',
     'nathan-background': 'Nathan’s background', relationships: 'Relationships', concerns: 'Current concerns' };
@@ -43,6 +44,7 @@ function mythicSceneEnd(region, mythic) {
 export function renderSceneReview(root, view, session, mythic) {
     const review = session.draft?.review ?? view.sceneReview;
     if (!review) {
+        editStates.delete(session);
         if (!session.message) {
             mythicStatus(root, mythic);
             return;
@@ -76,17 +78,23 @@ export function renderSceneReview(root, view, session, mythic) {
         group.append(text('p', `${statuses[entry.status]} · ${sections[entry.section] ?? entry.section}`), text('p', entry.text), text('p', `Related people: ${names(entry.relatedPersonIds)}`));
         return group;
     };
-    region.append(text('h3', `Review scene ${view.play.scene.number}`), text('p', 'Pending review. The scene stays open until you accept it.'), text('h4', 'Summary'), text('p', review.proposal.summary || 'No summary yet.'), text('h4', 'Participants'), text('p', names(review.proposal.participants)), text('p', 'Presence does not establish what a person knows.'), text('h4', 'Events'));
+    region.append(text('h3', `Review scene ${view.play.scene.number}`), text('p', 'Pending review. The scene stays open until you accept it.'), text('h4', 'Summary'), text('p', review.proposal.summary || 'No summary yet.'), text('h4', 'Participants'), text('p', names(review.proposal.participants)), text('p', 'Presence does not establish what a person knows.'));
+    const events = document.createElement('details');
+    const eventSummary = text('summary', `Events (${review.proposal.events.length})`);
+    events.append(eventSummary);
+    region.append(events);
     if (!review.proposal.events.length)
-        region.append(text('p', 'No event suggestions.'));
+        events.append(text('p', 'No event suggestions.'));
     for (const event of review.proposal.events) {
         const row = document.createElement('article');
         row.append(text('p', event.text), text('p', `People involved: ${names(event.personIds)}`), text('p', `Proposed knowledge additions: ${names(event.knownByAdditions)}`), evidence(event.sourceIndices));
-        region.append(row);
+        events.append(row);
     }
-    region.append(text('h4', 'Profile changes'));
+    const profiles = document.createElement('details');
+    profiles.append(text('summary', `Profile changes (${review.proposal.profileChanges.length})`));
+    region.append(profiles);
     if (!review.proposal.profileChanges.length)
-        region.append(text('p', 'No profile change suggestions.'));
+        profiles.append(text('p', 'No profile change suggestions.'));
     review.proposal.profileChanges.forEach((change, index) => {
         const row = document.createElement('article');
         row.append(text('h5', names([change.personId])), text('h6', 'Before'));
@@ -97,7 +105,7 @@ export function renderSceneReview(root, view, session, mythic) {
         else
             row.append(text('p', 'Delete this profile entry.'));
         row.append(text('p', `Proposed knowledge additions: ${names(change.knownByAdditions)}`));
-        region.append(row);
+        profiles.append(row);
     });
     const sources = document.createElement('details');
     sources.append(text('summary', `Supporting scene sources (${review.source.messages.length})`));
@@ -112,11 +120,29 @@ export function renderSceneReview(root, view, session, mythic) {
         warning.setAttribute('role', 'status');
         region.append(warning);
     }
-    if (session.draft)
-        appendSceneReviewEditor(region, view, session.draft, session);
+    if (session.draft) {
+        let state = editStates.get(session);
+        if (!state || state.id !== review.id) {
+            state = { id: review.id, open: false };
+            editStates.set(session, state);
+        }
+        const editState = state;
+        const edit = document.createElement('details');
+        edit.className = 'mc-review-edit';
+        edit.open = editState.open;
+        edit.append(text('summary', 'Edit review'));
+        let mounted = false;
+        const mount = () => { if (edit.open && !mounted && session.draft) {
+            mounted = true;
+            appendSceneReviewEditor(edit, view, session.draft, session);
+        } };
+        edit.ontoggle = () => { editState.open = edit.open; mount(); };
+        mount();
+        region.append(edit);
+    }
     mythicSceneEnd(region, mythic);
     const actions = document.createElement('div');
-    actions.className = 'mc-actions';
+    actions.className = 'mc-actions mc-review-actions';
     let accept;
     for (const [label, enabled, action] of [
         ['Accept scene', session.canAccept, () => session.act('accept')],

@@ -8,6 +8,7 @@ export function projectPlayer(campaign) {
     const character = state.characters.find(entry => entry.id === state.playerCharacterId);
     const play = state.classState.find(entry => entry.characterId === state.playerCharacterId);
     return {
+        injurySuggestions: projectInjurySuggestions(campaign),
         context: { campaignId: campaign.id, branchId: campaign.branchId, revision: campaign.revision },
         memoryBindings: {
             canonical: state.memoryBindings.canonical === null ? null
@@ -141,6 +142,26 @@ export function projectPlayer(campaign) {
         },
     };
 }
+/** Only generic injuries actually created by recorded harm; no private campaign or narrator context. */
+function projectInjurySuggestions(campaign) {
+    const state = campaign.snapshot.state;
+    const character = state.characters.find(c => c.id === state.playerCharacterId);
+    const described = new Set(campaign.journal.flatMap(({ event }) => event.kind === 'injury-described' ? [event.command.injuryId] : []));
+    return campaign.journal.flatMap(({ event }) => {
+        const harm = event.kind === 'action-resolved' ? event.harm : event.kind === 'harm-applied' ? event
+            : event.kind === 'stakes-adjudicated' ? event.harmEvent : null;
+        const created = harm?.createdInjury;
+        if (!created || described.has(created.id) || created.name !== 'Injury' || created.effect !== 'Ongoing injury penalty.')
+            return [];
+        const injury = character.conditions.find(c => c.id === created.id && c.kind === 'injuries');
+        if (!injury || injury.name !== created.name || injury.effect !== created.effect)
+            return [];
+        const roll = event.kind === 'action-resolved' ? event : undefined;
+        return [{ injury: { id: injury.id, name: injury.name, effect: injury.effect, boxes: injury.track.boxes.length },
+                action: roll?.command.originalActionCommand.action.description ?? '',
+                stakes: roll?.command.originalActionCommand.action.stakes?.narrative ?? '', outcome: roll?.result.outcome ?? '' }];
+    });
+}
 // One status per accepted scene discloses no target identities, counts, private prose or source metadata.
 function projectMemoryPublicationStatus(state) {
     const summaries = new Map();
@@ -249,8 +270,13 @@ export function projectActionReceipt(entry) {
 }
 // Message anchors with a recorded outcome, in journal order: decisions, cancellations and receipts.
 function projectTurns(campaign) {
+    let sceneId = campaign.initialState.world.scene.id;
     return campaign.journal.flatMap(entry => {
         const event = entry.event;
+        if (event.kind === 'scene-advanced')
+            sceneId = event.after.id;
+        if (event.kind === 'scene-review-accepted')
+            sceneId = event.boundary.after.id;
         const source = entry.context?.source;
         if (!source)
             return [];
@@ -266,8 +292,13 @@ function projectTurns(campaign) {
 }
 function projectHistory(campaign) {
     const secrets = campaign.snapshot.state.keeperSecrets ?? [];
+    let sceneId = campaign.initialState.world.scene.id;
     return campaign.journal.flatMap(entry => {
         const event = entry.event;
+        if (event.kind === 'scene-advanced')
+            sceneId = event.after.id;
+        if (event.kind === 'scene-review-accepted')
+            sceneId = event.boundary.after.id;
         if (event.kind === 'keeper-secret-added')
             return [];
         if (event.kind === 'turn-decided' && event.record.kind === 'narrative')
@@ -284,8 +315,10 @@ function projectHistory(campaign) {
             summary: event.kind === 'keeper-secret-revealed' ? 'Keeper secret revealed.' : entry.summary,
         };
         const receipt = projectActionReceipt(entry);
-        if (receipt)
+        if (receipt) {
             item.receipt = receipt;
+            item.sceneId = sceneId;
+        }
         if (event.kind === 'action-resolved' && event.harm)
             item.harm = structuredClone(event.harm);
         if (event.kind === 'field-corrected')

@@ -1,3 +1,5 @@
+import { InjuryModel } from "./injury-model.js";
+import { InjurySession } from "./injury-session.js";
 import { NarrationMemory, MEMORY_PROMPT_KEY } from "./narration-memory.js";
 import { NarratorProjection, NARRATOR_PROMPT_KEY } from "./narrator-projection.js";
 import { renderNarrationMemory } from "./narration-memory-view.js";
@@ -17,6 +19,7 @@ import { CampaignController } from "./game/minor-character/controller.js";
 import { hostStore } from "./game/minor-character/host-store.js";
 import { renderSheet } from "./sheet.js";
 import { createSheetShell } from "./sheet-shell.js";
+import { createExtensionSettings } from "./host-layout.js";
 import { SceneSource } from "./scene-source.js";
 import { SceneModel } from "./scene-model.js";
 import { DecideModel } from "./decide-model.js";
@@ -48,6 +51,8 @@ launcher.className = 'menu_button mc-launcher';
 launcher.textContent = 'SB';
 launcher.setAttribute('aria-label', 'Sera’s sheet');
 let destinationChanged = () => { };
+const extensionSettings = createExtensionSettings('minor-character-settings', 'Minor Character');
+extensionSettings.mount();
 const shell = createSheetShell(launcher, () => destinationChanged());
 shell.content.innerHTML = `<p role="status" aria-live="polite" class="mc-panel-status">Starting…</p>
   <div class="mc-actions mc-campaign-setup">
@@ -56,10 +61,10 @@ shell.content.innerHTML = `<p role="status" aria-live="polite" class="mc-panel-s
   </div><div class="mc-sheet-body"></div>`;
 const status = shell.content.querySelector('[role="status"]');
 const agentNotice = document.createElement('p');
-agentNotice.className = 'mc-agent-notice';
+agentNotice.className = 'mc-hint';
 agentNotice.setAttribute('role', 'status');
 agentNotice.hidden = true;
-status.after(agentNotice);
+extensionSettings.body.append(agentNotice);
 const content = shell.content.querySelector('.mc-sheet-body');
 const create = shell.content.querySelector('[data-create]');
 const reopen = shell.content.querySelector('[data-reopen]');
@@ -126,6 +131,15 @@ try {
         loadConnection: async (id) => (await api.llmConnections.load(id)).connection,
         sendRequest: (payload, extract, signal) => window.SillyTavern.getContext().ChatCompletionService.sendRequest(payload, extract, signal),
     });
+    const injuryModel = new InjuryModel({
+        current: () => {
+            const view = controller.playerView;
+            return view && ready() ? { binding: controller.state.binding, ...view.context, sceneId: view.play.scene.id } : undefined;
+        },
+        loadConnection: async (id) => (await api.llmConnections.load(id)).connection,
+        sendRequest: (payload, extract, signal) => window.SillyTavern.getContext().ChatCompletionService.sendRequest(payload, extract, signal),
+    });
+    const injurySession = new InjurySession(controller, injuryModel, capturePlay, playReady, render);
     const playSettings = new PlaySettingsStore(api.extension.store, () => render());
     // The triage key lives in memory for the session (spec §7); the store holds it only while Remember is on.
     const triageSecret = new TriageSecret(api.extension.store);
@@ -134,6 +148,7 @@ try {
     const applyRoles = () => {
         const settings = playSettings.settings;
         decideModel.select(settings.decide);
+        injuryModel.select(settings.decide);
         const scene = sceneModel.selection;
         if (scene.connectionId !== settings.scene.connectionId || scene.modelId !== settings.scene.modelId
             || (scene.workspaceId ?? '') !== (settings.scene.workspaceId ?? '')) {
@@ -181,6 +196,11 @@ try {
     const gmControls = createSceneControls(sceneModel, sceneSession, api.llmConnections, gmAvailable, sceneDraftReady, startScene, selection => { void playSettings.update({ scene: selection }); });
     const settingsControls = createPlaySettingsControls({ store: playSettings, connections: api.llmConnections, available: gmAvailable,
         applied: () => { applyRoles(); render(); }, secret: triageSecret });
+    const campaignFile = document.createElement('section');
+    campaignFile.className = 'mc-settings-file';
+    const campaignInfo = document.createElement('p');
+    campaignFile.append(Object.assign(document.createElement('h3'), { textContent: 'Campaign file' }), campaignInfo);
+    extensionSettings.body.prepend(settingsControls.element, gmControls.settingsElement, campaignFile);
     // Turn flow operations run inside the host's interceptor, after GENERATION_STARTED, so they must not deny themselves via writerActive.
     async function captureTurn(expected) {
         if (!writerReady())
@@ -316,12 +336,23 @@ try {
             profileOwner = owner;
         }
         status.textContent = controller.state.status;
+        status.hidden = !!view && controller.state.status === 'Saved campaign reopened.';
         create.disabled = controller.state.busy || !controller.state.available || !!view;
         create.hidden = !!view;
         reopen.disabled = controller.state.busy;
         // Reopening is for recovery: shown before a campaign is open, or when a save outcome needs reconciling.
         const needsReopen = !view || !controller.state.available || /uncertain|cannot|reopen before/i.test(controller.state.status);
-        setup.hidden = !!view && !needsReopen && shell.destination !== 'settings';
+        setup.hidden = false;
+        campaignInfo.textContent = view
+            ? `Campaign ${view.context.campaignId} · branch ${view.context.branchId} · revision ${view.context.revision} · rules ${view.rules.revision}`
+            : 'Open a saved chat to create or reopen its campaign.';
+        const setupHome = view && !needsReopen ? campaignFile : shell.content;
+        if (setup.parentElement !== setupHome) {
+            if (setupHome === shell.content)
+                content.before(setup);
+            else
+                setupHome.append(setup);
+        }
         launcher.textContent = view ? view.sheet.name.split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase() : 'SB';
         launcher.setAttribute('aria-label', view ? `${view.sheet.name}’s sheet` : 'Sera’s sheet');
         if (view) {
@@ -422,6 +453,7 @@ try {
                     open: tool => { campaignTool = tool; focusCampaign = true; render(); },
                     renderTool: (tool, container) => {
                         if (tool === 'scene') {
+                            gmControls.element.hidden = !!view.sceneReview || !!sceneReview.draft;
                             container.append(gmControls.element);
                             renderSceneReview(container, view, sceneReview, mythic);
                         }
@@ -434,26 +466,13 @@ try {
                     },
                 });
             }
-            else {
-                content.replaceChildren(settingsControls.element);
-                const file = document.createElement('section');
-                file.className = 'mc-settings-file';
-                file.append(Object.assign(document.createElement('h3'), { textContent: 'Campaign file' }), Object.assign(document.createElement('p'), { textContent: `Campaign ${view.context.campaignId} · branch ${view.context.branchId} · revision ${view.context.revision} · rules ${view.rules.revision}` }));
-                file.append(setup);
-                content.append(file);
-            }
             if (shell.destination === 'campaign')
                 renderMemory(content, view, memorySession);
         }
-        // Play settings work before any campaign exists: the triage key and connections are per device.
-        else if (shell.destination === 'settings')
-            content.replaceChildren(settingsControls.element);
         else
             content.replaceChildren();
-        // The setup row lives above the body except in Settings, where it sits in the campaign file section.
-        if (shell.destination !== 'settings' && setup.parentElement !== shell.content)
-            content.before(setup);
-        renderActions(inline, controller, capturePlay, playReady, { ...cardFlow(), chaos: mythic.state?.chaosFactor });
+        injurySession.reconcile();
+        renderActions(inline, controller, capturePlay, playReady, { ...cardFlow(), chaos: mythic.state?.chaosFactor, injuries: injurySession });
         document.querySelector('#sheld')?.classList.toggle('mc-card-modal', inline.classList.contains('mc-card-modal'));
         // Spec §10: a proposal that arrives without stakes puts the caret in the stakes text once, when it first appears.
         const proposalId = view?.proposal?.id ?? '';
@@ -470,7 +489,7 @@ try {
         if (reviewFocus) {
             const controls = [...content.querySelectorAll('[data-review-field]')];
             const target = controls.find(control => control.dataset.reviewField === reviewFocus.key && !control.matches(':disabled'))
-                ?? controls.find(control => control.dataset.reviewField === (sceneReview.busy ? 'review-region' : 'summary') && !control.matches(':disabled'))
+                ?? controls.find(control => control.dataset.reviewField === 'review-region' && !control.matches(':disabled'))
                 ?? controls.find(control => control.dataset.reviewField === 'review-status');
             target?.focus({ preventScroll: true });
             if (target instanceof HTMLTextAreaElement && reviewFocus.start !== null)
@@ -525,6 +544,8 @@ try {
         if (chat && inline.previousElementSibling !== chat)
             chat.after(inline);
         shell.mount();
+        extensionSettings.mount();
+        document.querySelector('#sheld')?.classList.add('mc-play-layout');
     }
     new ResizeObserver(() => {
         const focused = document.activeElement;
@@ -604,6 +625,7 @@ try {
         mythic.reset();
         turnFlow.reset();
         decideModel.invalidate();
+        injuryModel.invalidate();
         if (!preserveDraft) {
             corrections.clear();
             sceneReview.reset();
@@ -672,7 +694,7 @@ try {
         if (event)
             context.eventSource.on(event, () => { sceneSource.invalidate(); sceneSession.invalidate(); });
     }
-    window.addEventListener('tauritavern-llm-connections-changed', () => { sceneSession.invalidate(); decideModel.invalidate(); void gmControls.refresh(); void settingsControls.refresh(); });
+    window.addEventListener('tauritavern-llm-connections-changed', () => { sceneSession.invalidate(); decideModel.invalidate(); injuryModel.invalidate(); void gmControls.refresh(); void settingsControls.refresh(); });
     const started = context.eventTypes.GENERATION_STARTED, ended = context.eventTypes.GENERATION_ENDED;
     if (started)
         context.eventSource.on(started, async (_type, options, dryRun) => {

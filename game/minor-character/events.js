@@ -1,3 +1,4 @@
+import { describeInjury } from "./injury-description.js";
 import { memoryConflictReviewEvent, memoryOutcomeEvent, resolveMemoryDestinationEvent } from "./memory-publication.js";
 import { bindMemoryEvent, applyMemoryBinding } from "./memory-bindings.js";
 import { acceptSceneReviewEvent } from "./scene-acceptance.js";
@@ -78,6 +79,15 @@ export function applyOwnedMinorEvent(state, event, replay) {
         throw new Error('Finish the pending scene review first.');
     }
     const next = state;
+    if (event.kind === 'injury-described') {
+        if (!sameValue(event, describeInjury(state, event.command)))
+            throw new Error('Recorded injury wording disagrees with history.');
+        const injury = next.characters.find(c => c.id === next.playerCharacterId).conditions.find(c => c.id === event.command.injuryId);
+        injury.name = event.command.name;
+        injury.effect = event.command.description;
+        validateMinorState(next, replay);
+        return next;
+    }
     if (event.kind === 'scene-review-accepted') {
         const expected = acceptSceneReviewEvent(state, event.context, event.reviewId, event.reviewRevision, event.record.source.fingerprint);
         if (!sameValue(event, expected))

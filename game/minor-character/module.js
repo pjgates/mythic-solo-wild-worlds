@@ -1,3 +1,4 @@
+import { describeInjury } from "./injury-description.js";
 import { memoryConflictReviewEvent, memoryOutcomeEvent, resolveMemoryDestinationEvent } from "./memory-publication.js";
 import { bindMemoryEvent } from "./memory-bindings.js";
 import { acceptSceneReviewEvent } from "./scene-acceptance.js";
@@ -107,6 +108,8 @@ export const minorCharacterGame = {
             return correctField(state, body.ref, body.value, body.reason);
         if (body.kind === 'corrections')
             return correctFields(state, body.changes, body.reason);
+        if (body.kind === 'describe-injury')
+            return describeInjury(state, body);
         if (body.kind === 'apply-harm')
             return decideHarm(state, body);
         if (body.kind === 'adjudicate-stakes')
@@ -232,6 +235,8 @@ export const minorCharacterGame = {
             return `Sheet correction: ${event.reason}`;
         if (event.kind === 'field-corrected')
             return `Sheet correction: ${event.command.reason}`;
+        if (event.kind === 'injury-described')
+            return `Injury wording saved: ${event.command.name}`;
         if (event.kind === 'harm-applied')
             return `Harm applied: ${event.command.marks} mark(s).`;
         if (event.kind === 'stakes-adjudicated')

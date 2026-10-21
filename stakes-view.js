@@ -1,5 +1,5 @@
 import { element, button, select, input, checkbox, form, details } from "./card-controls.js";
-import { HARM_MARKS, HARM_OVERFLOW, harmTargets } from "./declaration-form.js";
+import { HARM_MARKS, HARM_OVERFLOW, harmTargets, bindHarmOverflow } from "./declaration-form.js";
 /** A pending result: what it cost (when no stakes were agreed), the Twist as choices, then manual handling and System Rescue. */
 export function renderPendingStakes(view, entry, card) {
     const section = element('section');
@@ -31,6 +31,7 @@ function renderStakesForm(view, entry, card) {
         harmMarks = select(cost, 'Harm marks', HARM_MARKS, 'stakes:marks');
         harmTarget = select(cost, 'Harm target', harmTargets(view), 'stakes:target');
         harmOverflow = select(cost, 'Harm overflow choice', HARM_OVERFLOW, 'stakes:overflow');
+        bindHarmOverflow(harmTarget, harmOverflow);
         injuryName = input(cost, 'Injury name (if injury created)', false, 'stakes:injury');
         stakesForm.append(cost);
     }
@@ -104,7 +105,7 @@ function renderStakesForm(view, entry, card) {
     const choices = element('div');
     choices.className = 'mc-twist-choices';
     action(choices, 'Use as a note', needText(value => ({ kind: 'note', text: value })), 'menu_button mc-twist-primary');
-    action(choices, 'Bank it', needText(value => ({ kind: 'bank', twistId: `twist-${entry.operationId}`, description: value })));
+    action(choices, 'Bank it', control => submit(control, { kind: 'bank', twistId: `twist-${entry.operationId}`, description: text() || 'Banked Twist' }, 'Twist banked for later in this scene.'));
     action(choices, 'Critical · impact up one step', control => submit(control, { kind: 'critical', elevatedImpact: 'High' }, text() || 'Critical: impact up one step.'));
     box.append(choices);
     const more = details('mc-twist-more', 'More Twist choices', 'stakes:twistMore');

@@ -157,3 +157,13 @@ export function renderDeclarationForm(view, card) {
     };
     return root;
 }
+/** Direct injury has no Aspect boxes to burn. Preserve an invalid saved selection until explicitly edited. */
+export function bindHarmOverflow(target, overflow) {
+    const sync = () => { if (!target.value)
+        overflow.value = 'injury'; overflow.disabled = !target.value; };
+    target.onchange = sync;
+    overflow.dataset.harmOverflow = '';
+    const restore = () => { overflow.disabled = !target.value && overflow.value === 'injury'; };
+    overflow.addEventListener('mc-restored', restore);
+    restore();
+}
