@@ -8,16 +8,21 @@ import { prepareMinorAction } from "./rules.js";
 import { manaStrainCut } from "./strain.js";
 import { projectActionReceipt, projectPlayer } from "./views.js";
 import { projectNarrator } from "./narrator-projection.js";
-import { exportCheckpoint } from "./checkpoints.js";
+import { exportCheckpoint, rebindCampaign } from "./checkpoints.js";
 import { projectKeeperSecrets, } from "./encounters-keeper.js";
 export class CampaignController {
     #engine;
+    #store;
+    #changed;
+    #hasSavedCampaign = false;
     constructor(store, changed = () => { }, die = rollD6) {
+        this.#store = store;
+        this.#changed = changed;
         this.#engine = new EngineController(store, minorCharacterGame, changed, die);
     }
     get state() {
         const { binding, busy, status, available } = this.#engine.state;
-        return { binding, busy, status, available };
+        return { binding, busy, status, available, hasSavedCampaign: this.#hasSavedCampaign };
     }
     get hasCampaign() { return !!this.#engine.state.campaign; }
     // Confirmed conflicts remain observable during saves/uncertainty; review admission is separate.
@@ -101,9 +106,56 @@ export class CampaignController {
         return resolveProfileSource(campaign.snapshot.state, personId, 'player', source);
     }
     get canGenerate() { return this.#engine.canGenerate; }
-    open(binding) { return this.#engine.open(binding); }
-    create(startAnchor) {
-        return this.#engine.create(binding => createMinorCampaign(binding, startAnchor));
+    async open(binding) {
+        this.#hasSavedCampaign = false;
+        await this.#engine.open(binding);
+        if (this.#engine.state.campaign) {
+            this.#hasSavedCampaign = true;
+        }
+        else if (binding && this.#engine.state.available && this.#store.loadLatest) {
+            try {
+                const latest = await this.#store.loadLatest();
+                if (this.#engine.state.binding === binding && !this.#engine.state.campaign) {
+                    this.#hasSavedCampaign = !!latest;
+                    this.#changed();
+                }
+            }
+            catch {
+                // Ignore unreadable latest pointer; current chat stays unbound
+            }
+        }
+    }
+    async create(startAnchor) {
+        await this.#engine.create(binding => createMinorCampaign(binding, startAnchor));
+        if (this.#engine.state.campaign)
+            this.#hasSavedCampaign = true;
+    }
+    async continueCampaign(binding, startAnchor) {
+        const { busy, available, campaign: existing } = this.#engine.state;
+        if (busy || !available || existing)
+            return;
+        const raw = await this.#store.loadLatest?.();
+        const source = raw && 'schemaVersion' in raw ? raw : raw?.campaign;
+        if (!source)
+            throw new Error('No saved campaign available to continue.');
+        const rebound = rebindCampaign(source, binding);
+        await this.#store.save(binding, rebound);
+        await this.open(binding);
+        const { campaign: current, available: ready } = this.#engine.state;
+        if (!current || !ready)
+            return;
+        if (!sameValue(current.snapshot.state.world.scene.startAnchor, startAnchor) || current.snapshot.state.sceneReview !== null) {
+            await this.#submitEvent({
+                operationId: crypto.randomUUID(),
+                campaignId: current.id,
+                branchId: current.branchId,
+                expectedRevision: current.revision,
+                source: {
+                    messageId: `${binding}:reanchor`,
+                    messageRevision: startAnchor.prefixFingerprint,
+                },
+            }, { kind: 'reanchor-scene', startAnchor }, 'scene-reanchored');
+        }
     }
     // A retry must not resolve an already recorded selection against subsequently renamed entries.
     #recorded(context) {

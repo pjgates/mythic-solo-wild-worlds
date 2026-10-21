@@ -540,9 +540,9 @@
 .solo-extension-settings > summary { min-height: 48px; padding: 8px; cursor: pointer; font-weight: 600; }
 .solo-settings-body { display: grid; gap: 16px; padding: 8px 12px 20px; min-width: 0; }
 .solo-settings-body > section { min-width: 0; }
-.solo-play-launchers { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; }
+.solo-play-launchers { display: flex; flex-wrap: wrap; flex: 0 0 auto; align-items: center; gap: 6px; width: 100%; }
 /* Both launchers use the same secondary-control treatment, including when installed alone. */
-#form_sheld .solo-play-launchers > :is(#minor-character-launch, #mythic-gme-launch) {
+#form_sheld .solo-play-launchers > :is(#minor-character-launch, #mythic-gme-launch, #minor-character-continue) {
   --solo-text: var(--SmartThemeBodyColor, #d6dce6);
   --solo-panel: var(--SmartThemeBlurTintColor, #0f141c);
   --solo-accent: var(--customThemeColor, #5fa8f0);
@@ -554,15 +554,16 @@
   font: 600 14px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif; letter-spacing: normal;
   text-shadow: none; box-shadow: none; opacity: 1; cursor: pointer; touch-action: manipulation;
 }
-#form_sheld .solo-play-launchers > :is(#minor-character-launch, #mythic-gme-launch)[aria-expanded="true"] {
+#form_sheld .solo-play-launchers > [hidden] { display: none !important; }
+#form_sheld .solo-play-launchers > :is(#minor-character-launch, #mythic-gme-launch, #minor-character-continue)[aria-expanded="true"] {
   border-color: var(--solo-accent);
   background: color-mix(in srgb, var(--solo-accent) 16%, var(--solo-panel));
   color: color-mix(in srgb, var(--solo-accent) 70%, var(--solo-text));
 }
 @media (hover: hover) {
-  #form_sheld .solo-play-launchers > :is(#minor-character-launch, #mythic-gme-launch):hover { border-color: var(--solo-accent); }
+  #form_sheld .solo-play-launchers > :is(#minor-character-launch, #mythic-gme-launch, #minor-character-continue):hover { border-color: var(--solo-accent); }
 }
-#form_sheld .solo-play-launchers > :is(#minor-character-launch, #mythic-gme-launch):focus-visible {
+#form_sheld .solo-play-launchers > :is(#minor-character-launch, #mythic-gme-launch, #minor-character-continue):focus-visible {
   outline: 2px solid var(--solo-accent); outline-offset: 2px;
 }
 
@@ -597,7 +598,7 @@
   #sheld.mc-play-layout #form_sheld { padding-bottom: max(4px, env(safe-area-inset-bottom)); }
 }
 
-#leftSendForm > .solo-play-launchers { width: auto; height: auto; opacity: 1; font: 14px/1.2 system-ui, sans-serif; }
+:is(#send_form, #leftSendForm) > .solo-play-launchers { width: auto; height: auto; opacity: 1; font: 14px/1.2 system-ui, sans-serif; }
 
 /* Saved results are opened explicitly; banked possibilities stay compact between turns. */
 #minor-character-actions .mc-card-toggle { min-height: 44px; padding-inline: 10px; flex-shrink: 0; }

@@ -1,5 +1,6 @@
 import { createInitialProfiles } from "./profiles.js";
 import { SKILLS, LORES } from "./catalogue.js";
+import { STARTING_CLASS_TIERS } from "./sheet.js";
 import { createSeedContent } from "../../seed.js";
 export function createInitialState(campaignId, startAnchor) {
     const { sheet: s, opening } = createSeedContent();
@@ -21,9 +22,13 @@ export function createInitialState(campaignId, startAnchor) {
         competence: Object.entries(package_).map(([skill, bonus]) => ({
             skillId: skills.find(entry => entry.category === 'skill' && entry.name === skill).id, bonus,
         })),
-        tier: 'advanced',
+        tier: STARTING_CLASS_TIERS[name] ?? 'advanced',
     }));
-    const definitions = s.aspects.map(aspect => ({
+    const placed = [
+        ...s.aspects.map(aspect => ({ aspect, location: aspect.card === null ? 'personal' : 'card' })),
+        ...s.archive.map(aspect => ({ aspect, location: 'archive' })),
+    ];
+    const definitions = placed.map(({ aspect }) => ({
         id: JSON.stringify([characterId, 'aspect-definition', aspect.id]), revision: 1,
         name: aspect.name, type: aspect.type, description: '', restrictions: [],
         effects: [{ kind: 'manual', text: aspect.rule }], full: aspect.track.full,
@@ -37,7 +42,7 @@ export function createInitialState(campaignId, startAnchor) {
         characters: [{
                 id: characterId, name: s.name, identity: s.identity, backgrounds: [],
                 edges: named('edge', s.edges), skills,
-                aspects: s.aspects.map((aspect, index) => ({
+                aspects: placed.map(({ aspect }, index) => ({
                     id: aspect.id, name: aspect.name,
                     definition: { id: definitions[index].id, revision: 1 },
                     track: meter('aspect', aspect.id, aspect.name, aspect.track).track,
@@ -60,9 +65,9 @@ export function createInitialState(campaignId, startAnchor) {
         classState: [{
                 characterId, classes, activeClassId: classes.find(entry => entry.name === s.activeClass).id,
                 manifestedElement: null, switchesThisScene: 0, manaStrainId: null,
-                placements: s.aspects.map(aspect => ({
+                placements: placed.map(({ aspect, location }) => ({
                     aspectId: aspect.id,
-                    location: aspect.card === null ? 'personal' : 'card',
+                    location,
                     classId: aspect.card === null ? null : classes.find(entry => entry.name === aspect.card).id,
                 })),
                 expressedRank: s.expressedRank, displayedRank: s.displayedRank,

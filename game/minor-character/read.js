@@ -24,6 +24,7 @@ const VALID_EVENT_KINDS = new Set([
     'scene-review-cancelled',
     'class-switched',
     'scene-advanced',
+    'scene-reanchored',
     'element-manifested',
     'fields-corrected',
     'action-resolved',

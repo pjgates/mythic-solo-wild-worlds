@@ -1,8 +1,9 @@
+const LAUNCHER_ORDER = ['minor-character-launch', 'mythic-gme-launch', 'minor-character-continue'];
 /** Small DOM convention shared by independently installable solo-play extensions. No cross-package imports. */
 export function mountLauncher(composer, launcher) {
     if (!composer)
         return;
-    const home = composer.querySelector('#leftSendForm') ?? composer;
+    const home = composer.querySelector('#send_form') ?? composer.querySelector('#leftSendForm') ?? composer;
     let group = home.querySelector('[data-solo-launchers]');
     if (!group) {
         group = document.createElement('div');
@@ -13,8 +14,14 @@ export function mountLauncher(composer, launcher) {
         home.prepend(group);
     }
     if (launcher.parentElement !== group) {
-        if (launcher.id === 'minor-character-launch')
-            group.prepend(launcher);
+        const rank = (id) => {
+            const idx = LAUNCHER_ORDER.indexOf(id);
+            return idx === -1 ? LAUNCHER_ORDER.length : idx;
+        };
+        const myRank = rank(launcher.id);
+        const before = Array.from(group.children).find(child => rank(child.id) > myRank);
+        if (before)
+            before.before(launcher);
         else
             group.append(launcher);
     }

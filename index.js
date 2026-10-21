@@ -19,7 +19,7 @@ import { CampaignController } from "./game/minor-character/controller.js";
 import { hostStore } from "./game/minor-character/host-store.js";
 import { renderSheet } from "./sheet.js";
 import { createSheetShell } from "./sheet-shell.js";
-import { createExtensionSettings } from "./host-layout.js";
+import { createExtensionSettings, mountLauncher } from "./host-layout.js";
 import { SceneSource } from "./scene-source.js";
 import { SceneModel } from "./scene-model.js";
 import { DecideModel } from "./decide-model.js";
@@ -31,7 +31,7 @@ import { TriageSecret } from "./triage-secret.js";
 import { SceneSession } from "./scene-session.js";
 import { createSceneControls } from "./scene-controls.js";
 import { MythicBridge, MYTHIC_READY_EVENT } from "./mythic-bridge.js";
-import { renderMythicPanel } from "./mythic-view.js";
+import { renderMythicPanel, seedNames } from "./mythic-view.js";
 import { renderCampaign } from "./campaign-view.js";
 import { AgentAdmission } from "./agent-admission.js";
 import { GitHubCheckpointSync } from "./github-sync.js";
@@ -48,15 +48,22 @@ window.minorCharacterActionGuard = async (_chat, _size, abort, type = 'normal') 
 const launcher = document.createElement('button');
 launcher.id = 'minor-character-launch';
 launcher.className = 'menu_button mc-launcher';
-launcher.textContent = 'SB';
-launcher.setAttribute('aria-label', 'Sera’s sheet');
+launcher.textContent = 'Character';
+launcher.setAttribute('aria-label', 'Character sheet');
+const continueButton = document.createElement('button');
+continueButton.id = 'minor-character-continue';
+continueButton.className = 'menu_button mc-launcher';
+continueButton.textContent = 'Continue Campaign';
+continueButton.setAttribute('aria-label', 'Continue Campaign');
+continueButton.hidden = true;
 let destinationChanged = () => { };
-const extensionSettings = createExtensionSettings('minor-character-settings', 'Minor Character');
+const extensionSettings = createExtensionSettings('minor-character-settings', 'Return to Origin');
 extensionSettings.mount();
 const shell = createSheetShell(launcher, () => destinationChanged());
 shell.content.innerHTML = `<p role="status" aria-live="polite" class="mc-panel-status">Starting…</p>
   <div class="mc-actions mc-campaign-setup">
-    <button class="menu_button mc-primary" data-create disabled>Create Sera’s campaign</button>
+    <button class="menu_button mc-primary" data-continue hidden disabled>Continue Campaign</button>
+    <button class="menu_button mc-primary" data-create disabled>Create Return to Origin campaign</button>
     <button class="menu_button" data-reopen disabled>Reopen saved campaign</button>
   </div><div class="mc-sheet-body"></div>`;
 const status = shell.content.querySelector('[role="status"]');
@@ -66,10 +73,12 @@ agentNotice.setAttribute('role', 'status');
 agentNotice.hidden = true;
 extensionSettings.body.append(agentNotice);
 const content = shell.content.querySelector('.mc-sheet-body');
+const continueSetupButton = shell.content.querySelector('[data-continue]');
 const create = shell.content.querySelector('[data-create]');
 const reopen = shell.content.querySelector('[data-reopen]');
 const setup = shell.content.querySelector('.mc-campaign-setup');
 shell.mount();
+mountLauncher(document.querySelector('#form_sheld'), continueButton);
 const refKey = (ref) => JSON.stringify(ref.kind === 'group' ? ['group', ref.chatId] : ['character', ref.characterId, ref.fileName]);
 try {
     await (window.__TAURITAVERN__?.ready ?? window.__TAURITAVERN_MAIN_READY__);
@@ -232,6 +241,47 @@ try {
         changed: render,
     });
     sceneReview.accepted = () => mythic.endScene();
+    function activeChatSpeakerNames() {
+        try {
+            const st = window.SillyTavern?.getContext?.();
+            if (!st)
+                return [];
+            const names = new Set();
+            if (typeof st.name2 === 'string' && st.name2.trim())
+                names.add(st.name2.trim());
+            const chars = Array.isArray(st.characters) ? st.characters : [];
+            if (st.characterId !== undefined && st.characterId !== null) {
+                const currentChar = chars[Number(st.characterId)];
+                if (typeof currentChar?.name === 'string' && currentChar.name.trim())
+                    names.add(currentChar.name.trim());
+            }
+            if (st.groupId && Array.isArray(st.groups)) {
+                const group = st.groups.find(entry => entry?.id === st.groupId);
+                const disabled = new Set(Array.isArray(group?.disabled_members) ? group.disabled_members : []);
+                const members = Array.isArray(group?.members) ? group.members : [];
+                for (const avatar of members) {
+                    if (disabled.has(avatar))
+                        continue;
+                    const char = chars.find(entry => entry?.avatar === avatar || entry?.name === avatar);
+                    if (typeof char?.name === 'string' && char.name.trim())
+                        names.add(char.name.trim());
+                    else if (typeof avatar === 'string' && avatar.trim())
+                        names.add(avatar.replace(/\.png$/i, '').trim());
+                }
+            }
+            if (Array.isArray(st.chat)) {
+                for (const msg of st.chat.slice(-10)) {
+                    if (msg && !msg.is_user && !msg.is_system && typeof msg.name === 'string' && msg.name.trim()) {
+                        names.add(msg.name.trim());
+                    }
+                }
+            }
+            return [...names];
+        }
+        catch {
+            return [];
+        }
+    }
     // The card is what a phone sees; a hold that lives in the sheet must still be named here, before Send fails silently.
     function cardFlow() {
         const flow = turnFlow.card;
@@ -337,6 +387,11 @@ try {
         }
         status.textContent = controller.state.status;
         status.hidden = !!view && controller.state.status === 'Saved campaign reopened.';
+        const canContinue = !view && controller.state.available && controller.state.hasSavedCampaign;
+        continueButton.hidden = !canContinue;
+        continueButton.disabled = controller.state.busy || !canContinue;
+        continueSetupButton.hidden = !canContinue;
+        continueSetupButton.disabled = controller.state.busy || !canContinue;
         create.disabled = controller.state.busy || !controller.state.available || !!view;
         create.hidden = !!view;
         reopen.disabled = controller.state.busy;
@@ -353,9 +408,10 @@ try {
             else
                 setupHome.append(setup);
         }
-        launcher.textContent = view ? view.sheet.name.split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase() : 'SB';
-        launcher.setAttribute('aria-label', view ? `${view.sheet.name}’s sheet` : 'Sera’s sheet');
+        launcher.textContent = 'Character';
+        launcher.setAttribute('aria-label', view ? `${view.sheet.name}’s character sheet` : 'Character sheet');
         if (view) {
+            narrationMemory.syncDefaultRecipients(view.profiles, view.characterId, activeChatSpeakerNames());
             corrections.reconcile(view);
             sceneReview.reconcile(view);
             profileSession.reconcile(view);
@@ -544,6 +600,7 @@ try {
         if (chat && inline.previousElementSibling !== chat)
             chat.after(inline);
         shell.mount();
+        mountLauncher(document.querySelector('#form_sheld'), continueButton);
         extensionSettings.mount();
         document.querySelector('#sheld')?.classList.add('mc-play-layout');
     }
@@ -670,6 +727,31 @@ try {
             status.textContent = error instanceof Error ? error.message : String(error);
         }
     }
+    const runContinue = async () => {
+        continueButton.disabled = true;
+        continueSetupButton.disabled = true;
+        try {
+            const epoch = sceneSource.epoch;
+            const anchor = await sceneSource.captureStartAnchor();
+            if (!ready() || epoch !== sceneSource.epoch)
+                throw new Error('Chat changed; try again.');
+            await controller.continueCampaign(controller.state.binding, anchor);
+            const opened = controller.playerView;
+            if (opened && mythic.attach() && mythic.canSeed) {
+                await mythic.seed(seedNames(opened));
+            }
+        }
+        catch (error) {
+            status.textContent = error instanceof Error ? error.message : String(error);
+        }
+        finally {
+            const canContinue = !controller.playerView && controller.state.available && controller.state.hasSavedCampaign;
+            continueButton.disabled = controller.state.busy || !canContinue;
+            continueSetupButton.disabled = controller.state.busy || !canContinue;
+        }
+    };
+    continueButton.onclick = runContinue;
+    continueSetupButton.onclick = runContinue;
     create.onclick = async () => {
         create.disabled = true;
         try {

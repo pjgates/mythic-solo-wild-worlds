@@ -7,7 +7,7 @@ import { assertActionReferences, assertRecordedAction, expectedActionPending } f
 import { applyProposalAcceptance, applyProposalEvent } from "./proposals.js";
 import { editableSlots } from "./editable-fields.js";
 import { validateMinorState } from "./validate-state.js";
-import { manifestElement, sceneBoundary, switchClass } from "./play.js";
+import { manifestElement, reanchorScene, sceneBoundary, switchClass } from "./play.js";
 import { sceneEventCorrectionEvent, applyProfileEvent, profileEvent } from "./profiles.js";
 import { applyActionBattery, applyHarmEvent, applySpendBankedTwist, applyStakesAdjudication, applySystemRescue, } from "./stakes.js";
 import { applyCardArrangement, applyConfirmCanonBeat, applyExposure, applyExposureCoverStory, applyGrandDiscovery, applyMarkDivergence, applyMysteryDiscovery, applyRecallTheDraft, applyWitnessAndLearn, } from "./origin-world.js";
@@ -263,6 +263,15 @@ export function applyOwnedMinorEvent(state, event, replay) {
         next.world.scene = structuredClone(event.after);
         for (const entry of next.classState)
             entry.switchesThisScene = 0;
+        validateMinorState(next, replay);
+        return next;
+    }
+    if (event.kind === 'scene-reanchored') {
+        if (!sameValue(event, reanchorScene(state, event.after))) {
+            throw new Error('Recorded scene re-anchor disagrees with history.');
+        }
+        next.world.scene.startAnchor = structuredClone(event.after);
+        next.sceneReview = null;
         validateMinorState(next, replay);
         return next;
     }

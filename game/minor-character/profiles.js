@@ -103,8 +103,8 @@ export function createInitialProfiles(playerId, cast) {
         'Castor Lane': 'A cheerful commoner who inspires hope and makes people follow him.',
         'Ren Thessaly': 'A calm prodigy from a great house of Aurelle, aligned with Ocean',
         'Instructor Oakhollow': 'Homeroom instructor, wounded veteran.',
-        'Wren Halloway': 'Quiet and observant.',
-        'Pip Ferrand': 'A comic-relief goofball with a quiet loyal streak.',
+        'Wren Halloway': 'A quiet, observant rogue, Sky-aligned and quick',
+        'Bram Holt': 'A big, warm-hearted warrior, Earth-aligned',
         'Dorian Brooke': 'B-rank hunter in a small local guild.',
     };
     // Curate individual public excerpts; the Guide's cast rows also contain unrevealed secrets.
@@ -118,7 +118,7 @@ export function createInitialProfiles(playerId, cast) {
             entry('sera-family', 'background', 'A commoner. Her parents are gone; her older brother, a hunter, is her guardian. Her place depends on a scholarship.', [], '4. Nathan and Sera'),
             entry('nathan-before', 'nathan-background', 'Thirty-eight, an astrophysicist, ordinary and a bit stuck.', [playerId], '4. Nathan and Sera', 'recollection'),
             entry('nathan-comic', 'nathan-background', 'In his early twenties he wrote a webcomic about this world and never finished it, because he never decided what it was about or how it ended.', [playerId], '4. Nathan and Sera', 'recollection'),
-            entry('opening-allies', 'relationships', 'Wren Halloway and Pip Ferrand arrived and fought beside her.', [playerId], '8. The opening, as it happened', 'established', [castId('Wren Halloway'), castId('Pip Ferrand')]),
+            entry('opening-allies', 'relationships', 'Wren Halloway and Bram Holt arrived and fought beside her.', [playerId], '8. The opening, as it happened', 'established', [castId('Wren Halloway'), castId('Bram Holt')]),
             entry('opening-assessment', 'concerns', 'The triage scan came up blank, and the instructor said "delayed awakening" before Sera had to say anything.', [playerId], '8. The opening, as it happened', 'established', [castId('Instructor Oakhollow')]),
         ] });
     profiles.find(profile => profile.personId === castId('The Cub')).entries.push(entry('opening-appearance', 'overview', 'The cub took the shape of a black cat.', [playerId], '8. The opening, as it happened'));

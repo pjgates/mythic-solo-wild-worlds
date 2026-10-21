@@ -6,13 +6,13 @@ const aspect = (id, name, size, rule, card = null) => ({
 });
 export function createSeedContent() {
     return {
-        opening: `Nathan woke at the foot of the collapsed Thornhall tower, unhurt, in Sera's body. The blue System called him User, showed Mage, and greyed out talent and element. A monster drove her into an unmapped cave with a marking older than the castle. Caring for the hurt cub began a bond; she accepted the System's offer to advance to Witch, and the cub became a black cat. Her voice and reflection revealed whose body this was; Sera's giggle slipped out. Wren and Pip helped her drive off the returning monster. The bracelet announced the dungeon cleared without their defeating it. She and the cub teleported out. Castor was relieved and guilty. Her triage scan was blank; Instructor Oakhollow supplied delayed awakening. The campaign continues after this established history; Nathan does not yet know Sera really died or what the System recorded.`,
+        opening: `Nathan woke at the foot of the collapsed Thornhall tower, unhurt, in Sera's body. The blue System called him User, showed Mage, and greyed out talent and element. A monster drove her into an unmapped cave with a marking older than the castle. Caring for the hurt cub began a bond; she accepted the System's offer to advance to Witch, and the cub became a black cat. Her voice and reflection revealed whose body this was; Sera's giggle slipped out. Wren and Bram helped her drive off the returning monster. The bracelet announced the dungeon cleared without their defeating it. She and the cub teleported out. Her triage scan was blank; Instructor Oakhollow supplied delayed awakening before homeroom sorting. The campaign continues after this established history; Nathan does not yet know Sera really died or what the System recorded.`,
         sheet: {
             name: 'Sera Brooke',
             identity: {
                 age: '16, first-year cadet', also: 'Nathan, 38, astrophysicist and author of the unfinished webcomic',
                 standing: 'Commoner on a scholarship; Dorian Brooke, her B-rank hunter brother, is her guardian.',
-                homeroom: "Instructor Oakhollow's, bottom seat, with Castor, Ren, Wren and Pip",
+                homeroom: "Instructor Oakhollow's, bottom seat, with Castor, Ren, Wren and Bram",
                 talent: 'Origin, SSS, unwritten and unknown to the world',
                 element: 'Reads blank; in truth pure and all of them. Access requires learned classes and techniques.',
                 assessment: 'Delayed awakening; re-test pending',
@@ -28,7 +28,10 @@ export function createSeedContent() {
                 aspect('cub', 'The Cub', 4, 'A shadow beast passing as a black cat, bonded in the Thornhall cave. Scouts reachable shadowed places and shares its senses. May take one Exposure mark in Sera’s place when able to hide the evidence. Reacts to the blend inside her. One companion, not an extra turn.'),
                 aspect('hearth-hex', 'Hearth Hex', 5, 'Brew a simple potion or poultice from Reagents as a Create task; lay a small curse imposing a stated Cut on one target’s next relevant action; or ease a wound with Mend. Roll Weave or Mend. Cannot kill by itself or affect an absent target.', 'Witch'),
             ],
-            archive: [], gear: ['Ordinary bracelet', 'Academy uniform'],
+            archive: [
+                aspect('mana-bolt', 'Mana Bolt', 5, "The mage's first cast, learned in the Thornhall before she advanced to Witch: shape raw mana into a short-ranged bolt or a minor effect — a light, a spark, a shove. Roll Weave; choose the damage type on a class attack (Origin). Modest impact; it cannot affect an absent target.", 'Mage'),
+            ],
+            gear: ['Ordinary bracelet', 'Academy uniform'],
             resources: [
                 { id: 'moss', name: 'Thornhall moss', kind: 'Reagent', tags: ['Medicinal'], source: 'Scraped from the cave wall by the marking.' },
                 { id: 'shard', name: 'Shard of the collapsed tower', kind: 'Loot', tags: ['Old'], source: 'Pre-Emergence stone, if the official story is true.' },
@@ -52,7 +55,7 @@ export function createSeedContent() {
             injuries: [], benefits: [],
             mysteries: ['Why did the rifts open?', 'What is the System and what does it want?', 'Where did the Origin come from?'].map(question => ({ question, discoveries: [], truth: null })),
             chaos: 5, threads: ['Pass the re-test without exposing Origin', 'Learn what the cave marking is'],
-            characters: ['Castor Lane', 'Ren Thessaly', 'Instructor Oakhollow', 'Wren Halloway', 'Pip Ferrand', 'Dorian Brooke', 'The Cub', 'The System', 'The rogue faction (unnamed)'],
+            characters: ['Castor Lane', 'Ren Thessaly', 'Instructor Oakhollow', 'Wren Halloway', 'Bram Holt', 'Dorian Brooke', 'The Cub', 'The System', 'The rogue faction (unnamed)'],
             knives: ['The rogue dungeon', 'The protagonist awakens', 'The group forms', 'The second warning', "The rival's challenge", 'The tournament', 'The collision', 'The cliffhanger'].map((name, i) => ({ beat: i + 1, name, status: i === 0 ? 'diverged' : i === 1 ? 'armed' : 'sheathed' })),
             milestones: [],
         },

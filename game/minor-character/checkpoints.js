@@ -1,6 +1,7 @@
 import { journalMemoryAdapter } from "../../memory-adapter.js";
 import { applyMinorEvent, sameValue } from "./events.js";
 import { admitMemoryDocument } from "./memory-publication.js";
+import { reanchorScene } from "./play.js";
 import { readMinorCampaign } from "./read.js";
 import { MINOR_RULES } from "./state.js";
 async function sha256Hex(input) {
@@ -284,33 +285,66 @@ function rebindSnapshot(source, targetBinding) {
     source.startAnchor.binding = targetBinding;
     source.endAnchor.binding = targetBinding;
 }
-function rebindCampaign(campaign, targetBinding) {
+export function rebindCampaign(campaign, targetBinding, newStartAnchor) {
     const rebound = structuredClone(campaign);
-    if (rebound.binding === targetBinding)
-        return rebound;
-    rebound.binding = targetBinding;
-    rebound.initialState.world.scene.startAnchor.binding = targetBinding;
-    rebound.snapshot.state.world.scene.startAnchor.binding = targetBinding;
-    for (const record of rebound.snapshot.state.sceneRecords) {
-        rebindSnapshot(record.source, targetBinding);
+    if (rebound.binding !== targetBinding) {
+        rebound.binding = targetBinding;
+        rebound.initialState.world.scene.startAnchor.binding = targetBinding;
+        rebound.snapshot.state.world.scene.startAnchor.binding = targetBinding;
+        for (const record of rebound.snapshot.state.sceneRecords) {
+            rebindSnapshot(record.source, targetBinding);
+        }
+        if (rebound.snapshot.state.sceneReview) {
+            rebindSnapshot(rebound.snapshot.state.sceneReview.source, targetBinding);
+        }
+        for (const entry of rebound.journal) {
+            const event = entry.event;
+            if (event.kind === 'scene-advanced') {
+                event.before.startAnchor.binding = targetBinding;
+                event.after.startAnchor.binding = targetBinding;
+            }
+            else if (event.kind === 'scene-reanchored') {
+                event.before.binding = targetBinding;
+                event.after.binding = targetBinding;
+            }
+            else if (event.kind === 'scene-review-saved' || event.kind === 'scene-review-revised') {
+                rebindSnapshot(event.review.source, targetBinding);
+            }
+            else if (event.kind === 'scene-review-accepted') {
+                rebindSnapshot(event.record.source, targetBinding);
+                event.boundary.before.startAnchor.binding = targetBinding;
+                event.boundary.after.startAnchor.binding = targetBinding;
+            }
+        }
     }
-    if (rebound.snapshot.state.sceneReview) {
-        rebindSnapshot(rebound.snapshot.state.sceneReview.source, targetBinding);
-    }
-    for (const entry of rebound.journal) {
-        const event = entry.event;
-        if (event.kind === 'scene-advanced') {
-            event.before.startAnchor.binding = targetBinding;
-            event.after.startAnchor.binding = targetBinding;
-        }
-        else if (event.kind === 'scene-review-saved' || event.kind === 'scene-review-revised') {
-            rebindSnapshot(event.review.source, targetBinding);
-        }
-        else if (event.kind === 'scene-review-accepted') {
-            rebindSnapshot(event.record.source, targetBinding);
-            event.boundary.before.startAnchor.binding = targetBinding;
-            event.boundary.after.startAnchor.binding = targetBinding;
-        }
+    if (newStartAnchor &&
+        (!sameValue(rebound.snapshot.state.world.scene.startAnchor, newStartAnchor) ||
+            rebound.snapshot.state.sceneReview !== null)) {
+        const operationId = crypto.randomUUID();
+        const context = {
+            operationId,
+            campaignId: rebound.id,
+            branchId: rebound.branchId,
+            expectedRevision: rebound.revision,
+            source: {
+                messageId: `${targetBinding}:reanchor`,
+                messageRevision: newStartAnchor.prefixFingerprint,
+            },
+        };
+        const event = reanchorScene(rebound.snapshot.state, newStartAnchor);
+        const nextState = applyMinorEvent(rebound.snapshot.state, event);
+        rebound.revision++;
+        rebound.snapshot = { revision: rebound.revision, state: nextState };
+        rebound.journal.push({
+            operationId,
+            revision: rebound.revision,
+            branchId: rebound.branchId,
+            at: new Date().toISOString(),
+            context,
+            rulesRevision: rebound.rules.revision,
+            summary: `Scene ${event.cancelledReviewId ? 'review cleared and ' : ''}start anchor reset.`,
+            event,
+        });
     }
     return rebound;
 }

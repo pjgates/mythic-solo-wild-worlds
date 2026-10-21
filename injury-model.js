@@ -17,7 +17,7 @@ export class InjuryModel {
     invalidate() { this.#epoch++; this.#active?.abort(); }
     async suggest(input) {
         if (!this.configured)
-            throw new Error('Choose a draft connection in Extensions → Minor Character, or write the injury yourself.');
+            throw new Error('Choose a draft connection in Extensions → Return to Origin, or write the injury yourself.');
         if (this.#active)
             throw new Error('An injury suggestion is already running.');
         const context = structuredClone(this.#host.current()), selection = { ...this.#selection }, epoch = this.#epoch;

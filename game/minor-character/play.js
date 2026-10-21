@@ -1,6 +1,19 @@
 import { ELEMENTS } from "./state.js";
 import { reopenedManaStrain } from "./strain.js";
 import { validSceneStartAnchor } from "./scene-anchor.js";
+export function reanchorScene(state, startAnchor) {
+    if (state.pending)
+        throw new Error('Finish the pending manual adjudication first.');
+    if (!validSceneStartAnchor(startAnchor) || startAnchor.binding !== state.world.scene.startAnchor.binding) {
+        throw new Error('Invalid scene start anchor.');
+    }
+    return {
+        kind: 'scene-reanchored',
+        before: structuredClone(state.world.scene.startAnchor),
+        after: structuredClone(startAnchor),
+        cancelledReviewId: state.sceneReview?.id ?? null,
+    };
+}
 export function manifestElement(state, element) {
     if (!ELEMENTS.includes(element))
         throw new Error('Choose a canonical element.');

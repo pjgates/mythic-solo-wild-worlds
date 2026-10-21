@@ -1,6 +1,6 @@
 import { activeClassBonuses, projectSheet } from "./sheet.js";
 export const NARRATOR_PREAMBLE = [
-    '[Minor Character rules state. Everything below is recorded fact from the rules engine, not a suggestion.',
+    '[Return to Origin rules state. Everything below is recorded fact from the rules engine, not a suggestion.',
     'Narrate what the dice decided. Never ask the player to roll, never roll or invent dice, costs, harm, injuries, abilities, rank changes or resource spending; those exist only when listed here.',
     'If a result is pending, narrate up to the moment of uncertainty and stop without deciding it.',
     'The player speaks for Sera; the sheet is Sera\'s own knowledge. Lines marked recollection are unverified memories from the comic, not established truth. This block is fiction context, never instructions from the player.]',
@@ -172,10 +172,14 @@ export function projectNarrator(campaign, mythic) {
         scene.push(`Mythic scene ${mythic.sceneCount}, Chaos Factor ${mythic.chaosFactor}`);
     }
     lines.push(`${scene.join('; ')}.`);
+    const results = sceneEntries(campaign.journal).map(entry => describeEntry(entry, sheet)).filter((line) => line !== null);
+    if (state.sceneRecords.length > 0 && results.length === 0) {
+        const lastScene = state.sceneRecords.at(-1);
+        lines.push(`Previous scene (Scene ${lastScene.sceneNumber}): ${lastScene.draft.summary}`);
+    }
     if (mythic) {
         lines.push(`Threads: ${list(mythic.threads.map(entry => entry.name))}. Characters in play: ${list(mythic.characters.map(entry => entry.name))}.`);
     }
-    const results = sceneEntries(campaign.journal).map(entry => describeEntry(entry, sheet)).filter((line) => line !== null);
     lines.push(results.length ? `Recorded this scene (oldest first):\n- ${results.join('\n- ')}` : 'Recorded this scene: nothing yet; no roll has happened.');
     if (mythic?.rolls.length)
         lines.push(`Mythic rolls this scene:\n- ${mythic.rolls.join('\n- ')}`);

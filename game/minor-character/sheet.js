@@ -4,6 +4,12 @@ export const RANKS = ['E', 'D', 'C', 'B', 'A', 'S', 'SS', 'SSS'];
 export const CLASS_ACQUISITION_BONUSES = { base: [1], advanced: [1, 1], master: [2, 1], rare: [2, 1] };
 export const STARTING_CLASS_COMPETENCE = {
     Witch: { Weave: CLASS_ACQUISITION_BONUSES.advanced[0], Mend: CLASS_ACQUISITION_BONUSES.advanced[1] },
+    Mage: { Weave: CLASS_ACQUISITION_BONUSES.base[0] },
+};
+// Acquisition tier recorded per starting class; Witch advanced from the base Mage in the opening.
+export const STARTING_CLASS_TIERS = {
+    Witch: 'advanced',
+    Mage: 'base',
 };
 export function activeClassBonuses(sheet) {
     const origin = sheet.aspects.find(aspect => aspect.id === 'core');

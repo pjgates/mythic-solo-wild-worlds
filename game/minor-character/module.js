@@ -10,7 +10,7 @@ import { correctFields } from "./batch-editing.js";
 import { resolveMinorAction } from "./rules.js";
 import { decideCancelProposal, decideRecordTurn, decideReviseProposal, decideSaveProposal, describeProposalEvent, } from "./proposals.js";
 import { readMinorCampaign } from "./read.js";
-import { manifestElement, switchClass } from "./play.js";
+import { manifestElement, reanchorScene, switchClass } from "./play.js";
 import { MINOR_RULES } from "./state.js";
 import { sceneEventCorrectionEvent, profileEvent } from "./profiles.js";
 import { emptySceneStartAnchor, validSceneStartAnchor } from "./scene-anchor.js";
@@ -104,6 +104,8 @@ export const minorCharacterGame = {
             return switchClass(state, body.classId, JSON.stringify([context.operationId, 'mana-strain']));
         if (body.kind === 'manifest-element')
             return manifestElement(state, body.element);
+        if (body.kind === 'reanchor-scene')
+            return reanchorScene(state, body.startAnchor);
         if (body.kind === 'correction')
             return correctField(state, body.ref, body.value, body.reason);
         if (body.kind === 'corrections')
@@ -227,6 +229,8 @@ export const minorCharacterGame = {
             return `Class switched; paid ${event.paidBoxes.length} Core Fatigue${event.strain ? '; Mana Strain reopened' : ''}.`;
         if (event.kind === 'scene-advanced')
             return `Scene ${event.before.number} ended; scene ${event.after.number} begins.`;
+        if (event.kind === 'scene-reanchored')
+            return `Scene ${event.cancelledReviewId ? 'review cleared and ' : ''}start anchor reset.`;
         if (event.kind === 'element-manifested')
             return `Manifested element: ${event.after}`;
         if (event.kind === 'manual-handled')

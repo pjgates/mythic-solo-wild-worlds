@@ -23,6 +23,28 @@ export function hostStore(store, metadata) {
             await target.setExtension({ namespace: 'minor-character', value: {
                     campaignId: campaign.id, branchId: campaign.branchId, revision: campaign.revision, binding,
                 } });
+            await store.setJson({
+                namespace: 'minor-character',
+                key: 'latest-campaign-m25',
+                value: { binding, campaignId: campaign.id, branchId: campaign.branchId },
+            });
+        },
+        async loadLatest() {
+            const pointer = await store.tryGetJson({ namespace: 'minor-character', key: 'latest-campaign-m25' });
+            if (!pointer.found || !pointer.value || typeof pointer.value !== 'object')
+                return undefined;
+            const { binding } = pointer.value;
+            if (typeof binding !== 'string' || !binding)
+                return undefined;
+            const result = await store.tryGetJson(await entry(binding));
+            if (!result.found)
+                return undefined;
+            try {
+                return readMinorCampaign(result.value, binding);
+            }
+            catch {
+                return undefined;
+            }
         },
     };
 }
