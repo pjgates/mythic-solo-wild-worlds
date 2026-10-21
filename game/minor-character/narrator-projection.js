@@ -1,4 +1,35 @@
 import { activeClassBonuses, projectSheet } from "./sheet.js";
+export const NARRATIVE_PACING_MODES = ['auto', 'combat', 'standard', 'long-form'];
+const COMBAT_SKILLS = new Set(['Strike', 'Shoot', 'Guard']);
+const LONG_FORM_KINDS = new Set([
+    'resource-recovered',
+    'benefit-created',
+    'resource-acquired-traded',
+    'burn-recovered',
+    'drive-advanced',
+    'project-started',
+    'milestones-spent',
+    'project-completed',
+    'breakthrough-marked',
+    'tournament-interlude-spent',
+    'witness-and-learn-recorded',
+    'cards-arranged',
+    'mystery-discovery-recorded',
+    'grand-discovery-accepted',
+]);
+const STANDARD_KINDS = new Set([
+    'banked-twist-spent',
+    'class-switched',
+    'element-manifested',
+    'exposure-recorded',
+    'exposure-cleared',
+    'canon-beat-confirmed',
+    'divergence-marked',
+    'recall-draft-resolved',
+    'rift-pressure-marked',
+    'dungeon-run-started',
+    'tournament-started',
+]);
 export const NARRATOR_PREAMBLE = [
     '[Return to Origin rules state. Everything below is recorded fact from the rules engine, not a suggestion.',
     'Narrate what the dice decided. Never ask the player to roll, never roll or invent dice, costs, harm, injuries, abilities, rank changes or resource spending; those exist only when listed here.',
@@ -136,8 +167,101 @@ function pendingLine(state, sheet) {
         return 'PENDING: the last roll\'s consequences are still the player\'s to rule on. Do not decide them.';
     return null;
 }
+function classifyEntryPacing(entry) {
+    const event = entry.event;
+    if (event.kind === 'mayfly-rolled'
+        || event.kind === 'hazard-started'
+        || event.kind === 'hazard-marked'
+        || event.kind === 'tournament-bout-resolved'
+        || event.kind === 'awakening-activated') {
+        return 'combat';
+    }
+    if (event.kind === 'stakes-adjudicated') {
+        if (event.twist?.kind === 'critical' || event.twist?.kind === 'counter')
+            return 'combat';
+        if (event.twist?.kind === 'mystery-discovery')
+            return 'long-form';
+        return null;
+    }
+    if (event.kind === 'action-resolved') {
+        const { action } = event.command.originalActionCommand;
+        if ((action.skill?.kind === 'skill' && COMBAT_SKILLS.has(action.skill.name)) || action.battery !== undefined) {
+            return 'combat';
+        }
+        return 'standard';
+    }
+    if (event.kind === 'dungeon-leg-resolved') {
+        if (event.leg.pace === 'swift' || event.leg.threatTier === 'danger')
+            return 'combat';
+        if (event.leg.pace === 'camp' || event.leg.scoutDomain === 'Peace')
+            return 'long-form';
+        return 'standard';
+    }
+    if (event.kind === 'turn-decided') {
+        if (event.record.kind === 'narrative')
+            return 'long-form';
+        if (event.record.kind === 'question' || event.record.kind === 'rules')
+            return 'standard';
+        return null;
+    }
+    if (event.kind === 'proposal-cancelled')
+        return 'long-form';
+    if (LONG_FORM_KINDS.has(event.kind))
+        return 'long-form';
+    if (STANDARD_KINDS.has(event.kind))
+        return 'standard';
+    return null;
+}
+/** Resolves the effective narrative pacing for the current scene from the player's mode selection and live campaign state. */
+export function resolveNarrativePacing(campaign, mode = 'auto') {
+    if (mode !== 'auto')
+        return mode;
+    const state = campaign.snapshot.state;
+    const hazards = state.encounters?.hazards ?? state.hazards ?? [];
+    if (hazards.some(hazard => hazard.status === 'active'))
+        return 'combat';
+    if (state.coreDevelopments?.awakeningActiveSceneId === state.world.scene.id)
+        return 'combat';
+    const tournaments = state.encounters?.tournaments ?? state.tournaments ?? [];
+    if (tournaments.some(tournament => tournament.status === 'active' && tournament.interludeTasksRemaining === 0)) {
+        return 'combat';
+    }
+    const entries = sceneEntries(campaign.journal);
+    for (let index = entries.length - 1; index >= 0; index--) {
+        const resolved = classifyEntryPacing(entries[index]);
+        if (resolved)
+            return resolved;
+    }
+    const dungeonRuns = state.encounters?.dungeonRuns ?? state.dungeonRuns ?? [];
+    const activeRun = dungeonRuns.find(run => run.status === 'active');
+    const latestLeg = activeRun?.legs.at(-1);
+    if (latestLeg) {
+        if (latestLeg.pace === 'swift' || latestLeg.threatTier === 'danger')
+            return 'combat';
+        if (latestLeg.pace === 'camp' || latestLeg.scoutDomain === 'Peace')
+            return 'long-form';
+    }
+    if (tournaments.some(tournament => tournament.status === 'active' && tournament.interludeTasksRemaining > 0)) {
+        return 'long-form';
+    }
+    return 'standard';
+}
+export function describeNarrativePacing(resolved) {
+    switch (resolved) {
+        case 'combat':
+            return 'Narrative pacing: combat (fast and direct). Keep this reply to 1–2 short, kinetic paragraphs. Focus on immediate physical motion, ranges, and the direct result of the roll. When an opponent or hazard takes focus, show one big thing (its immediate attack or threat) and one small thing (a shift in position, footing, or tell), then stop immediately so Sera can react. Do not pad with internal monologue or extended scenery.';
+        case 'long-form':
+            return 'Narrative pacing: long-form (expansive narrative). Take 3–5 paragraphs to let the scene breathe. Develop sensory atmosphere, NPC dialogue and body language, academy texture, and the quiet tension between Nathan\'s memory of the draft and what is actually here. When a montage or downtime task resolves, let time pass across the scene before ending at a natural moment for Sera to speak or act.';
+        case 'standard':
+            return 'Narrative pacing: standard scene play (2–3 paragraphs). Balance sensory grounding and character interaction with forward momentum, ending at a clear point where Sera can act.';
+        default: {
+            const exhaustive = resolved;
+            throw new Error(`Unsupported narrative pacing: ${String(exhaustive)}`);
+        }
+    }
+}
 /** The narrator's public view of the campaign: sheet, this scene's recorded results, pending decisions and Mythic. */
-export function projectNarrator(campaign, mythic) {
+export function projectNarrator(campaign, mythic, pacing = 'auto') {
     const state = campaign.snapshot.state;
     const sheet = projectSheet(state);
     const play = state.classState.find(entry => entry.characterId === state.playerCharacterId);
@@ -172,6 +296,7 @@ export function projectNarrator(campaign, mythic) {
         scene.push(`Mythic scene ${mythic.sceneCount}, Chaos Factor ${mythic.chaosFactor}`);
     }
     lines.push(`${scene.join('; ')}.`);
+    lines.push(describeNarrativePacing(resolveNarrativePacing(campaign, pacing)));
     const results = sceneEntries(campaign.journal).map(entry => describeEntry(entry, sheet)).filter((line) => line !== null);
     if (state.sceneRecords.length > 0 && results.length === 0) {
         const lastScene = state.sceneRecords.at(-1);

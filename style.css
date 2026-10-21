@@ -602,6 +602,9 @@
 
 /* Saved results are opened explicitly; banked possibilities stay compact between turns. */
 #minor-character-actions .mc-card-toggle { min-height: 44px; padding-inline: 10px; flex-shrink: 0; }
+#minor-character-actions .mc-card-pacing { font-size: 13px; font-weight: 600; color: var(--mc-muted); }
+#minor-character-actions .mc-card-pacing[data-resolved-pacing="combat"] { border-color: var(--mc-gold); color: var(--mc-gold-text); background: var(--mc-gold-soft); }
+#minor-character-actions .mc-card-pacing[data-resolved-pacing="long-form"] { border-color: var(--mc-accent); color: var(--mc-accent-text); background: var(--mc-accent-soft); }
 #minor-character-actions .mc-banked-disclosure > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--mc-muted); }
 #minor-character-actions .mc-banked-disclosure:not([open]) { margin-top: 2px; }
 

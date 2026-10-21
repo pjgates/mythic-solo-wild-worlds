@@ -196,6 +196,7 @@ try {
     // The narrator always reads the current public sheet and this scene's recorded results, whatever starts generation.
     const narratorProjection = new NarratorProjection(controller, {
         mythic: () => mythic.narratorFacts,
+        pacing: () => playSettings.settings.pacing ?? 'auto',
         install: value => context.setExtensionPrompt(NARRATOR_PROMPT_KEY, value, 1, 0, false, 0),
     });
     function castReady() {
@@ -528,7 +529,20 @@ try {
         else
             content.replaceChildren();
         injurySession.reconcile();
-        renderActions(inline, controller, capturePlay, playReady, { ...cardFlow(), chaos: mythic.state?.chaosFactor, injuries: injurySession });
+        const pacingMode = playSettings.settings.pacing ?? 'auto';
+        const resolvedPacing = controller.resolvePacing(pacingMode);
+        renderActions(inline, controller, capturePlay, playReady, {
+            ...cardFlow(),
+            chaos: mythic.state?.chaosFactor,
+            injuries: injurySession,
+            pacing: resolvedPacing
+                ? {
+                    mode: pacingMode,
+                    resolved: resolvedPacing,
+                    select: async (next) => { await playSettings.update({ pacing: next }); },
+                }
+                : undefined,
+        });
         document.querySelector('#sheld')?.classList.toggle('mc-card-modal', inline.classList.contains('mc-card-modal'));
         // Spec §10: a proposal that arrives without stakes puts the caret in the stakes text once, when it first appears.
         const proposalId = view?.proposal?.id ?? '';

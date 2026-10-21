@@ -7,7 +7,7 @@ import { createMinorCampaign, minorCharacterGame } from "./module.js";
 import { prepareMinorAction } from "./rules.js";
 import { manaStrainCut } from "./strain.js";
 import { projectActionReceipt, projectPlayer } from "./views.js";
-import { projectNarrator } from "./narrator-projection.js";
+import { projectNarrator, resolveNarrativePacing, } from "./narrator-projection.js";
 import { exportCheckpoint, rebindCampaign } from "./checkpoints.js";
 import { projectKeeperSecrets, } from "./encounters-keeper.js";
 export class CampaignController {
@@ -48,11 +48,19 @@ export class CampaignController {
         return campaign ? manaStrainCut(campaign.snapshot.state, skill) : 0;
     }
     /** The narrator's public projection for the open campaign; absent while nothing is open or readable. */
-    projectNarrator(mythic) {
+    projectNarrator(mythic, pacing = 'auto') {
         const { campaign, available } = this.#engine.state;
         if (!campaign || !available)
             return undefined;
-        return { text: projectNarrator(campaign, mythic), revision: campaign.revision };
+        return {
+            text: projectNarrator(campaign, mythic, pacing),
+            revision: campaign.revision,
+            pacing: { mode: pacing, resolved: resolveNarrativePacing(campaign, pacing) },
+        };
+    }
+    resolvePacing(pacing = 'auto') {
+        const { campaign, available } = this.#engine.state;
+        return campaign && available ? resolveNarrativePacing(campaign, pacing) : undefined;
     }
     get keeperView() {
         const campaign = this.#engine.state.campaign;

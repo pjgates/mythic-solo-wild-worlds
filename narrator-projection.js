@@ -7,7 +7,7 @@ export class NarratorProjection {
     constructor(controller, host) { this.controller = controller; this.host = host; }
     get text() { return this.last; }
     reconcile() {
-        const text = this.controller.projectNarrator(this.host.mythic())?.text ?? '';
+        const text = this.controller.projectNarrator(this.host.mythic(), this.host.pacing?.() ?? 'auto')?.text ?? '';
         if (text !== this.last) {
             this.last = text;
             this.host.install(text);

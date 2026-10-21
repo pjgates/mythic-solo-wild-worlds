@@ -7,6 +7,17 @@ import { describeTriage } from "./game/minor-character/proposals.js";
 import { renderInjurySuggestions } from "./injury-view.js";
 const ODDS_LABELS = { certain: 'Certain', 'nearly-certain': 'Nearly certain', 'very-likely': 'Very likely',
     likely: 'Likely', 'fifty-fifty': '50/50', unlikely: 'Unlikely', 'very-unlikely': 'Very unlikely', 'nearly-impossible': 'Nearly impossible', impossible: 'Impossible' };
+const PACING_LABELS = {
+    combat: 'Combat',
+    standard: 'Standard',
+    'long-form': 'Long-form',
+};
+const PACING_CYCLE = ['auto', 'combat', 'long-form', 'standard'];
+function describePacingPill(pacing) {
+    return pacing.mode === 'auto'
+        ? `Pace: Auto (${PACING_LABELS[pacing.resolved]})`
+        : `Pace: ${PACING_LABELS[pacing.resolved]}`;
+}
 const latestTriage = (view) => view.proposal ? view.proposal.triage : view.turns.at(-1)?.triage;
 // Draft state lives beside the card element so a rebuild never loses what the player typed.
 const cards = new WeakMap();
@@ -60,10 +71,11 @@ function summarize(view, latest) {
     return `${r.result.outcome}${r.result.twist ? ' + Twist' : ''} · ${r.command.action.description}`;
 }
 /** The quieter second line: where the campaign stands, so a phone sees Scene, Chaos and Exposure without the sheet. */
-function standing(view, chaos) {
+function standing(view, chaos, pacing) {
     const exposure = view.sheet.tracks.exposure.boxes;
     const marked = exposure.filter(box => box !== 'clear').length;
-    return `Scene ${view.play.scene.number} · Chaos ${chaos ?? view.sheet.chaos} · Exposure ${marked} of ${exposure.length}`;
+    const base = `Scene ${view.play.scene.number} · Chaos ${chaos ?? view.sheet.chaos} · Exposure ${marked} of ${exposure.length}`;
+    return pacing ? `${base} · ${describePacingPill(pacing)}` : base;
 }
 /** The dot beside the summary: the latest outcome's colour, gold while something waits. */
 function tone(view, latest) {
@@ -107,10 +119,21 @@ export function renderActions(root, controller, capture, ready, flow = {}) {
     lines.className = 'mc-card-lines';
     const summary = element('p', summarize(view, latest));
     summary.className = 'mc-card-summary';
-    const where = element('p', standing(view, flow.chaos));
+    const where = element('p', standing(view, flow.chaos, flow.pacing));
     where.className = 'mc-card-standing';
     lines.append(summary, where);
     header.append(dot, lines);
+    if (settled && !liveDecision && !showForm && flow.pacing) {
+        const currentPacing = flow.pacing;
+        const nextMode = PACING_CYCLE[(PACING_CYCLE.indexOf(currentPacing.mode) + 1) % PACING_CYCLE.length];
+        const paceBtn = button(describePacingPill(currentPacing), 'menu_button mc-card-toggle mc-card-pacing');
+        paceBtn.dataset.cardPacing = currentPacing.mode;
+        paceBtn.dataset.resolvedPacing = currentPacing.resolved;
+        paceBtn.disabled = !!flow.busy;
+        paceBtn.setAttribute('aria-label', `Narrative pacing: ${describePacingPill(currentPacing)}. Switch pacing mode.`);
+        paceBtn.onclick = () => { void currentPacing.select(nextMode); };
+        header.append(paceBtn);
+    }
     if (settled && latest && !liveDecision && !showForm) {
         const inspect = button(state.receiptOpen ? 'Close result' : 'Last roll', 'menu_button mc-card-toggle');
         inspect.setAttribute('aria-expanded', String(state.receiptOpen));

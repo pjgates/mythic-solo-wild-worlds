@@ -1,3 +1,4 @@
+import { NARRATIVE_PACING_MODES } from "./game/minor-character/narrator-projection.js";
 import { JevClient, JevFailure } from "./jev-client.js";
 export const ROLES_NAMESPACE = 'minor-character-roles';
 export const DEFAULT_TRIAGE_MODEL = 'typesafe/jev-1.14';
@@ -5,6 +6,10 @@ export const DEFAULT_PLAY_SETTINGS = { assisted: true, confirmAlways: false,
     decide: { connectionId: '', modelId: '' }, scene: { connectionId: '', modelId: '' },
     triage: { enabled: false, modelId: DEFAULT_TRIAGE_MODEL } };
 const text = (value) => typeof value === 'string' ? value : '';
+function readPacing(value) {
+    const raw = text(value).trim();
+    return NARRATIVE_PACING_MODES.includes(raw) ? raw : 'auto';
+}
 function readSelection(value) {
     const raw = value && typeof value === 'object' ? value : {};
     const workspaceId = text(raw.workspaceId).trim();
@@ -32,6 +37,9 @@ export class PlaySettingsStore {
                     next.assisted = raw.assisted;
                 if (typeof raw.confirmAlways === 'boolean')
                     next.confirmAlways = raw.confirmAlways;
+                const pacing = readPacing(raw.pacing);
+                if (pacing !== 'auto')
+                    next.pacing = pacing;
             }
             if (decide.found)
                 next.decide = readSelection(decide.value);
@@ -47,6 +55,13 @@ export class PlaySettingsStore {
     }
     async update(patch) {
         const next = { ...this.#settings, ...structuredClone(patch) };
+        if (patch.pacing !== undefined) {
+            const pacing = readPacing(patch.pacing);
+            if (pacing === 'auto')
+                delete next.pacing;
+            else
+                next.pacing = pacing;
+        }
         if (patch.decide)
             next.decide = readSelection(next.decide);
         if (patch.scene)
@@ -56,8 +71,16 @@ export class PlaySettingsStore {
         this.#settings = next;
         this.#changed();
         const writes = [];
-        if (patch.assisted !== undefined || patch.confirmAlways !== undefined) {
-            writes.push(this.#store.setJson({ namespace: ROLES_NAMESPACE, key: 'play', value: { assisted: next.assisted, confirmAlways: next.confirmAlways } }));
+        if (patch.assisted !== undefined || patch.confirmAlways !== undefined || patch.pacing !== undefined) {
+            writes.push(this.#store.setJson({
+                namespace: ROLES_NAMESPACE,
+                key: 'play',
+                value: {
+                    assisted: next.assisted,
+                    confirmAlways: next.confirmAlways,
+                    ...(next.pacing ? { pacing: next.pacing } : {}),
+                },
+            }));
         }
         if (patch.decide)
             writes.push(this.#store.setJson({ namespace: ROLES_NAMESPACE, key: 'decide', value: readSelection(next.decide) }));
@@ -79,6 +102,7 @@ export function createPlaySettingsControls(host) {
     element.innerHTML = `<h3>Play settings</h3>
     <label class="mc-checkbox"><input type="checkbox" data-play-assisted> Assisted play: read my messages and propose rolls</label>
     <label class="mc-checkbox"><input type="checkbox" data-play-confirm> Always confirm before rolling</label>
+    <label>Narrative pacing <select data-play-pacing><option value="auto">Auto (match the scene)</option><option value="combat">Combat (fast and direct)</option><option value="standard">Standard (balanced)</option><option value="long-form">Long-form (expansive)</option></select></label>
     <section class="mc-triage" aria-label="Triage (Jev)">
       <h4>Triage (Jev)</h4>
       <label>OpenRouter key <input type="password" class="text_pole" data-triage-key placeholder="Enter the OpenRouter key for this session" autocomplete="off" inputmode="text"></label>
@@ -98,6 +122,7 @@ export function createPlaySettingsControls(host) {
     <p class="mc-role-note">Triage: Jev decides what each message is. Draft: the saved connection proposes the mechanics. Narrate: this chat’s own connection, chosen in the host’s API settings.</p>`;
     const assisted = element.querySelector('[data-play-assisted]');
     const confirm = element.querySelector('[data-play-confirm]');
+    const pacing = element.querySelector('[data-play-pacing]');
     const connection = element.querySelector('[data-decide-connection]');
     const modelId = element.querySelector('[data-decide-model]');
     const workspaceId = element.querySelector('[data-decide-workspace]');
@@ -132,6 +157,7 @@ export function createPlaySettingsControls(host) {
         const settings = host.store.settings;
         assisted.checked = settings.assisted;
         confirm.checked = settings.confirmAlways;
+        pacing.value = settings.pacing ?? 'auto';
         assisted.disabled = confirm.disabled = !host.available;
         connection.disabled = modelId.disabled = workspaceId.disabled = !host.available || !settings.assisted;
         if (![...connection.querySelectorAll('option')].some(option => option.value === settings.decide.connectionId)) {
@@ -197,6 +223,7 @@ export function createPlaySettingsControls(host) {
     triageTest.onclick = () => runTest();
     assisted.onchange = () => save({ assisted: assisted.checked });
     confirm.onchange = () => save({ confirmAlways: confirm.checked });
+    pacing.onchange = () => save({ pacing: readPacing(pacing.value) });
     const saveDecide = () => save({ decide: { connectionId: connection.value, modelId: modelId.value, workspaceId: workspaceId.value } });
     connection.onchange = saveDecide;
     modelId.onchange = saveDecide;
